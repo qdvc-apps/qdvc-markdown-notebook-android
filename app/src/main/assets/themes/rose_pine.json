@@ -1,0 +1,18 @@
+{
+  "id": "rose_pine",
+  "name": "Rose Pine",
+  "dark": true,
+  "colors": {
+    "background": "#191724",
+    "surface": "#1F1D2E",
+    "surfaceVariant": "#26233A",
+    "onBackground": "#E0DEF4",
+    "onSurfaceVariant": "#908CAA",
+    "outline": "#403D52",
+    "primary": "#C4A7E7",
+    "onPrimary": "#191724",
+    "secondary": "#EBBCBA",
+    "onSecondary": "#191724",
+    "error": "#EB6F92"
+  }
+}

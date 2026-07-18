@@ -20,13 +20,14 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import qdvc.markdownnotebook.android.app.model.FontSizes
 import qdvc.markdownnotebook.android.app.model.OpenNote
 import qdvc.markdownnotebook.android.app.ui.components.rememberSyntaxColors
 import qdvc.markdownnotebook.android.app.util.MarkdownHighlighter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ViewScreen(note: OpenNote?, fontFamily: FontFamily) {
+fun ViewScreen(note: OpenNote?, fontFamily: FontFamily, fontSize: Float) {
     val syntaxColors = rememberSyntaxColors()
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -50,13 +51,13 @@ fun ViewScreen(note: OpenNote?, fontFamily: FontFamily) {
             Box(Modifier.fillMaxSize().padding(padding))
             return@Scaffold
         }
-        val annotated = remember(note.draftContent, syntaxColors, fontFamily) {
+        val annotated = remember(note.draftContent, syntaxColors, fontFamily, fontSize) {
             MarkdownHighlighter.highlight(
                 note.draftContent,
                 syntaxColors,
                 fontFamily,
                 render = true,
-                hangingIndentFontSizeSp = 14f,
+                hangingIndentFontSizeSp = fontSize,
             )
         }
         // SelectionContainer makes the read-only text selectable/copyable.
@@ -72,8 +73,8 @@ fun ViewScreen(note: OpenNote?, fontFamily: FontFamily) {
                     text = annotated,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontFamily = fontFamily,
-                        fontSize = 14.sp,
-                        lineHeight = 22.sp,
+                        fontSize = fontSize.sp,
+                        lineHeight = FontSizes.lineHeightFor(fontSize).sp,
                         color = MaterialTheme.colorScheme.onSurface,
                     ),
                 )

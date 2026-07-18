@@ -86,8 +86,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val themeMode by vm.themeMode.collectAsState()
-            val lightStyle by vm.lightStyle.collectAsState()
-            val darkStyle by vm.darkStyle.collectAsState()
+            val lightTheme by vm.lightTheme.collectAsState()
+            val darkThemeSpec by vm.darkTheme.collectAsState()
 
             // Resolve whether the app is currently showing a dark theme so the
             // status-bar / nav-bar icons get the right contrast.
@@ -97,7 +97,11 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.DARK -> true
             }
 
-            MarkdownNotesTheme(themeMode = themeMode, lightStyle = lightStyle, darkStyle = darkStyle) {
+            MarkdownNotesTheme(
+                themeMode = themeMode,
+                lightTheme = lightTheme,
+                darkTheme = darkThemeSpec,
+            ) {
                 SystemBars(darkTheme = darkTheme)
                 AppRoot(
                     vm = vm,
@@ -168,8 +172,10 @@ private fun AppRoot(
         BackHandler(enabled = true) { showSettings = false }
         SettingsScreen(
             themeMode = vm.themeMode.collectAsState().value,
-            lightStyle = vm.lightStyle.collectAsState().value,
-            darkStyle = vm.darkStyle.collectAsState().value,
+            lightThemes = vm.lightThemes,
+            darkThemes = vm.darkThemes,
+            lightThemeId = vm.lightThemeId.collectAsState().value,
+            darkThemeId = vm.darkThemeId.collectAsState().value,
             systemFonts = systemFonts,
             viewFontId = viewFontId,
             editFontId = editFontId,
@@ -177,11 +183,14 @@ private fun AppRoot(
             editCustomSet = editCustomSet,
             viewCustomFont = viewCustomFont,
             editCustomFont = editCustomFont,
+            viewFontSize = vm.viewFontSize.collectAsState().value,
+            editFontSize = vm.editFontSize.collectAsState().value,
             onThemeMode = vm::setThemeMode,
-            onLightStyle = vm::setLightStyle,
-            onDarkStyle = vm::setDarkStyle,
+            onLightThemeId = vm::setLightThemeId,
+            onDarkThemeId = vm::setDarkThemeId,
             onViewFontId = vm::setViewFontId,
             onEditFontId = vm::setEditFontId,
+            onFontSize = vm::setFontSize,
             onSelectCustom = vm::selectCustomFont,
             onPickCustomVariant = onPickCustomVariant,
             onClearCustomVariant = { forView, variant ->
@@ -246,11 +255,13 @@ private fun AppRoot(
                 Tab.VIEW -> ViewScreen(
                     note = currentNote,
                     fontFamily = vm.fontFamilyFor(viewFontId, forView = true),
+                    fontSize = vm.viewFontSize.collectAsState().value,
                 )
 
                 Tab.EDIT -> EditScreen(
                     note = currentNote,
                     fontFamily = vm.fontFamilyFor(editFontId, forView = false),
+                    fontSize = vm.editFontSize.collectAsState().value,
                     onDraftChange = { draft ->
                         currentNoteUri?.let { vm.updateDraft(it, draft) }
                     },

@@ -1,0 +1,18 @@
+{
+  "id": "regular_light",
+  "name": "Regular Light Mode",
+  "dark": false,
+  "colors": {
+    "background": "#F6F3EC",
+    "surface": "#FFFFFF",
+    "surfaceVariant": "#EBE7DC",
+    "onBackground": "#2A2A26",
+    "onSurfaceVariant": "#585850",
+    "outline": "#D6D0C2",
+    "primary": "#5E9B82",
+    "onPrimary": "#FFFFFF",
+    "secondary": "#C57B57",
+    "onSecondary": "#FFFFFF",
+    "error": "#D1483C"
+  }
+}

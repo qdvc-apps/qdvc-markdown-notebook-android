@@ -43,10 +43,10 @@ object MarkdownHighlighter {
      * bold text is bold, italics slant, strikethrough is struck through, and the
      * surrounding markers are dimmed. When false (the Edit tab), markers keep
      * full colour so the raw source stays clear for editing.
-     * @param hangingIndentFontSizeSp when non-null (render mode), wrapped lines
-     * of a list item are indented to align under the item's text, using this
-     * font size to size the indent. Null disables hanging indents (Edit tab),
-     * so raw source stays character-accurate for editing.
+     * @param hangingIndentFontSizeSp when non-null, wrapped lines of a list item
+     * are indented to align under the item's text, using this font size to size
+     * the indent. The transformation preserves every character (including
+     * newlines), so it is safe for the editor's identity offset mapping too.
      */
     fun highlight(
         text: String,
@@ -57,18 +57,12 @@ object MarkdownHighlighter {
     ): AnnotatedString = buildAnnotatedString {
         withStyle(SpanStyle(fontFamily = fontFamily)) {
             val lines = text.split("\n")
-            if (hangingIndentFontSizeSp != null) {
-                // Each source line becomes its own paragraph so continuation
-                // (wrapped) lines can be indented independently. Paragraph
-                // boundaries provide the line breaks, so we don't append "\n".
-                lines.forEach { line ->
-                    appendLine(line, colors, render, hangingIndentFontSizeSp)
-                }
-            } else {
-                lines.forEachIndexed { index, line ->
-                    appendLine(line, colors, render, null)
-                    if (index != lines.lastIndex) append("\n")
-                }
+            lines.forEachIndexed { index, line ->
+                // Keep newline characters so the output length matches the input
+                // (required for the editor's identity offset mapping). In hanging
+                // mode the newline is emitted inside the line's paragraph.
+                val trailingNewline = index != lines.lastIndex
+                appendLine(line, colors, render, hangingIndentFontSizeSp, trailingNewline)
             }
         }
     }
@@ -78,6 +72,7 @@ object MarkdownHighlighter {
         c: SyntaxColors,
         render: Boolean,
         hangingFontSizeSp: Float?,
+        trailingNewline: Boolean,
     ) {
         val trimmed = line.trimStart()
         val indent = line.length - trimmed.length
@@ -100,6 +95,9 @@ object MarkdownHighlighter {
         }
 
         appendLineBody(line, trimmed, indent, c, render, ulMatch, olMatch)
+        // Emit the newline inside the paragraph so the character count matches
+        // the source exactly (identity offset mapping for the editor).
+        if (trailingNewline) append("\n")
 
         if (hangingFontSizeSp != null) pop()
     }

@@ -4,13 +4,13 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import qdvc.markdownnotebook.android.app.model.CustomFontSet
-import qdvc.markdownnotebook.android.app.model.DarkStyle
+import qdvc.markdownnotebook.android.app.model.FontSizes
 import qdvc.markdownnotebook.android.app.model.FontVariant
-import qdvc.markdownnotebook.android.app.model.LightStyle
 import qdvc.markdownnotebook.android.app.model.PersistedOpenNote
 import qdvc.markdownnotebook.android.app.model.ThemeMode
 import qdvc.markdownnotebook.android.app.model.Workspace
@@ -29,10 +29,12 @@ class SettingsRepository(private val context: Context) {
 
     private object Keys {
         val THEME_MODE = stringPreferencesKey("theme_mode")
-        val LIGHT_STYLE = stringPreferencesKey("light_style")
-        val DARK_STYLE = stringPreferencesKey("dark_style")
+        val LIGHT_THEME = stringPreferencesKey("light_theme_id")
+        val DARK_THEME = stringPreferencesKey("dark_theme_id")
         val VIEW_FONT = stringPreferencesKey("view_font")
         val EDIT_FONT = stringPreferencesKey("edit_font")
+        val VIEW_FONT_SIZE = floatPreferencesKey("view_font_size")
+        val EDIT_FONT_SIZE = floatPreferencesKey("edit_font_size")
         val WORKSPACES = stringSetPreferencesKey("workspaces")
         val WORKSPACE_ORDER = stringPreferencesKey("workspace_order")
         val OPEN_NOTES = stringPreferencesKey("open_notes")
@@ -54,12 +56,12 @@ class SettingsRepository(private val context: Context) {
         ThemeMode.fromName(it[Keys.THEME_MODE])
     }
 
-    val lightStyle: Flow<LightStyle> = context.dataStore.data.map {
-        LightStyle.fromName(it[Keys.LIGHT_STYLE])
+    val lightThemeId: Flow<String> = context.dataStore.data.map {
+        it[Keys.LIGHT_THEME] ?: ThemeRepository.DEFAULT_LIGHT_ID
     }
 
-    val darkStyle: Flow<DarkStyle> = context.dataStore.data.map {
-        DarkStyle.fromName(it[Keys.DARK_STYLE])
+    val darkThemeId: Flow<String> = context.dataStore.data.map {
+        it[Keys.DARK_THEME] ?: ThemeRepository.DEFAULT_DARK_ID
     }
 
     // Font selection is stored as the font's id: the default sentinel, a system
@@ -67,6 +69,13 @@ class SettingsRepository(private val context: Context) {
     // "use this tab's custom font set".
     val viewFontId: Flow<String?> = context.dataStore.data.map { it[Keys.VIEW_FONT] }
     val editFontId: Flow<String?> = context.dataStore.data.map { it[Keys.EDIT_FONT] }
+
+    val viewFontSize: Flow<Float> = context.dataStore.data.map {
+        it[Keys.VIEW_FONT_SIZE] ?: FontSizes.DEFAULT
+    }
+    val editFontSize: Flow<Float> = context.dataStore.data.map {
+        it[Keys.EDIT_FONT_SIZE] ?: FontSizes.DEFAULT
+    }
 
     val viewCustomFontSet: Flow<CustomFontSet> = context.dataStore.data.map { prefs ->
         CustomFontSet(
@@ -99,12 +108,12 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { it[Keys.THEME_MODE] = mode.name }
     }
 
-    suspend fun setLightStyle(style: LightStyle) {
-        context.dataStore.edit { it[Keys.LIGHT_STYLE] = style.name }
+    suspend fun setLightThemeId(id: String) {
+        context.dataStore.edit { it[Keys.LIGHT_THEME] = id }
     }
 
-    suspend fun setDarkStyle(style: DarkStyle) {
-        context.dataStore.edit { it[Keys.DARK_STYLE] = style.name }
+    suspend fun setDarkThemeId(id: String) {
+        context.dataStore.edit { it[Keys.DARK_THEME] = id }
     }
 
     suspend fun setViewFontId(id: String) {
@@ -113,6 +122,14 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setEditFontId(id: String) {
         context.dataStore.edit { it[Keys.EDIT_FONT] = id }
+    }
+
+    /** Sets the View or Edit font size (sp). Passing null restores the default. */
+    suspend fun setFontSize(forView: Boolean, sizeSp: Float?) {
+        val key = if (forView) Keys.VIEW_FONT_SIZE else Keys.EDIT_FONT_SIZE
+        context.dataStore.edit { prefs ->
+            if (sizeSp == null) prefs.remove(key) else prefs[key] = sizeSp
+        }
     }
 
     /** Records or clears the stored display name for one custom-font slot. */

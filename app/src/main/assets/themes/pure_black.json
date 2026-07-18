@@ -1,0 +1,18 @@
+{
+  "id": "pure_black",
+  "name": "Pure Black Mode",
+  "dark": true,
+  "colors": {
+    "background": "#000000",
+    "surface": "#0A0A0A",
+    "surfaceVariant": "#161616",
+    "onBackground": "#E4E2DC",
+    "onSurfaceVariant": "#9A9A9A",
+    "outline": "#262626",
+    "primary": "#7FB4A0",
+    "onPrimary": "#000000",
+    "secondary": "#E6A277",
+    "onSecondary": "#000000",
+    "error": "#E5645A"
+  }
+}

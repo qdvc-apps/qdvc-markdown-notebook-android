@@ -11,33 +11,23 @@ enum class ThemeMode(val label: String) {
     }
 }
 
-enum class LightStyle(val label: String) {
-    REGULAR("Regular Light Mode"),
-    EVERFOREST("Everforest Light");
-
-    companion object {
-        fun fromName(name: String?): LightStyle =
-            entries.firstOrNull { it.name == name } ?: REGULAR
-    }
-}
-
-enum class DarkStyle(val label: String) {
-    REGULAR("Regular Dark Mode"),
-    PURE_BLACK("Pure Black Mode"),
-    EVERFOREST("Everforest Dark");
-
-    companion object {
-        fun fromName(name: String?): DarkStyle =
-            entries.firstOrNull { it.name == name } ?: REGULAR
-    }
-}
-
 /** The four style variants a custom font can supply for syntax highlighting. */
 enum class FontVariant(val label: String) {
     REGULAR("Regular"),
     ITALIC("Italic"),
     BOLD("Bold"),
     BOLD_ITALIC("Bold Italic"),
+}
+
+/** Font-size bounds and default (in sp) for the View and Edit tabs. */
+object FontSizes {
+    const val DEFAULT = 14f
+    const val MIN = 10f
+    const val MAX = 28f
+    const val STEP = 1f
+
+    /** The line height that pairs with a given font size (roughly 1.57x). */
+    fun lineHeightFor(sizeSp: Float): Float = sizeSp * 1.57f
 }
 
 /**

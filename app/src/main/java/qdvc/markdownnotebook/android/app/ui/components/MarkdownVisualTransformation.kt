@@ -11,14 +11,24 @@ import qdvc.markdownnotebook.android.app.util.SyntaxColors
 /**
  * Recolours the editor text with markdown syntax highlighting without changing
  * any characters, so the offset mapping is identity. Font size is untouched;
- * only colour/weight change. The base [fontFamily] matches the user's choice.
+ * only colour/weight and paragraph indentation change. The base [fontFamily]
+ * matches the user's choice, and [fontSizeSp] sizes the hanging indent applied
+ * to wrapped list lines (identity mapping is preserved because no characters
+ * are added or removed).
  */
 class MarkdownVisualTransformation(
     private val colors: SyntaxColors,
     private val fontFamily: FontFamily,
+    private val fontSizeSp: Float,
 ) : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
-        val highlighted = MarkdownHighlighter.highlight(text.text, colors, fontFamily)
+        val highlighted = MarkdownHighlighter.highlight(
+            text.text,
+            colors,
+            fontFamily,
+            render = false,
+            hangingIndentFontSizeSp = fontSizeSp,
+        )
         return TransformedText(highlighted, OffsetMapping.Identity)
     }
 }

@@ -1,0 +1,18 @@
+{
+  "id": "rose_pine_dawn",
+  "name": "Rose Pine Dawn",
+  "dark": false,
+  "colors": {
+    "background": "#FAF4ED",
+    "surface": "#FFFAF3",
+    "surfaceVariant": "#F2E9E1",
+    "onBackground": "#575279",
+    "onSurfaceVariant": "#797593",
+    "outline": "#DFDAD9",
+    "primary": "#907AA9",
+    "onPrimary": "#FFFAF3",
+    "secondary": "#D7827E",
+    "onSecondary": "#FFFAF3",
+    "error": "#B4637A"
+  }
+}

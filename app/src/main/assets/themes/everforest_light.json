@@ -1,0 +1,18 @@
+{
+  "id": "everforest_light",
+  "name": "Everforest Light",
+  "dark": false,
+  "colors": {
+    "background": "#FDF6E3",
+    "surface": "#F4F0D9",
+    "surfaceVariant": "#ECE8D0",
+    "onBackground": "#5C6A72",
+    "onSurfaceVariant": "#829181",
+    "outline": "#E0DCC7",
+    "primary": "#8DA101",
+    "onPrimary": "#FFFFFF",
+    "secondary": "#DFA000",
+    "onSecondary": "#FFFFFF",
+    "error": "#F85552"
+  }
+}

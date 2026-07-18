@@ -25,6 +25,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import qdvc.markdownnotebook.android.app.model.FontSizes
 import qdvc.markdownnotebook.android.app.model.OpenNote
 import qdvc.markdownnotebook.android.app.ui.components.MarkdownVisualTransformation
 import qdvc.markdownnotebook.android.app.ui.components.rememberSyntaxColors
@@ -34,6 +35,7 @@ import qdvc.markdownnotebook.android.app.ui.components.rememberSyntaxColors
 fun EditScreen(
     note: OpenNote?,
     fontFamily: FontFamily,
+    fontSize: Float,
     onDraftChange: (String) -> Unit,
     onSave: () -> Unit,
 ) {
@@ -72,8 +74,8 @@ fun EditScreen(
         }
 
         // Keep cursor state locally; push text changes up to the ViewModel.
-        val transformation = remember(syntaxColors, fontFamily) {
-            MarkdownVisualTransformation(syntaxColors, fontFamily)
+        val transformation = remember(syntaxColors, fontFamily, fontSize) {
+            MarkdownVisualTransformation(syntaxColors, fontFamily, fontSize)
         }
         val fieldValue = remember(note.documentUri) {
             androidx.compose.runtime.mutableStateOf(TextFieldValue(note.draftContent))
@@ -105,8 +107,8 @@ fun EditScreen(
                     .padding(16.dp),
                 textStyle = MaterialTheme.typography.bodyMedium.copy(
                     fontFamily = fontFamily,
-                    fontSize = 14.sp,
-                    lineHeight = 22.sp,
+                    fontSize = fontSize.sp,
+                    lineHeight = FontSizes.lineHeightFor(fontSize).sp,
                     color = MaterialTheme.colorScheme.onSurface,
                 ),
                 cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),

@@ -6,17 +6,18 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import qdvc.markdownnotebook.android.app.data.NoteRepository
 import qdvc.markdownnotebook.android.app.data.SettingsRepository
+import qdvc.markdownnotebook.android.app.data.ThemeRepository
 import qdvc.markdownnotebook.android.app.model.CustomFontSet
-import qdvc.markdownnotebook.android.app.model.DarkStyle
 import qdvc.markdownnotebook.android.app.model.FolderEntry
+import qdvc.markdownnotebook.android.app.model.FontSizes
 import qdvc.markdownnotebook.android.app.model.FontVariant
-import qdvc.markdownnotebook.android.app.model.LightStyle
 import qdvc.markdownnotebook.android.app.model.NoteFile
 import qdvc.markdownnotebook.android.app.model.OpenNote
 import qdvc.markdownnotebook.android.app.model.PersistedOpenNote
 import qdvc.markdownnotebook.android.app.model.SearchResult
 import qdvc.markdownnotebook.android.app.model.Tab
 import qdvc.markdownnotebook.android.app.model.ThemeMode
+import qdvc.markdownnotebook.android.app.model.ThemeSpec
 import qdvc.markdownnotebook.android.app.model.Workspace
 import qdvc.markdownnotebook.android.app.ui.settings.CUSTOM_FONT_ID
 import qdvc.markdownnotebook.android.app.ui.settings.DEFAULT_FONT_ID
@@ -27,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -69,14 +71,44 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val themeMode: StateFlow<ThemeMode> =
         settingsRepo.themeMode.stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.AUTOMATIC)
-    val lightStyle: StateFlow<LightStyle> =
-        settingsRepo.lightStyle.stateIn(viewModelScope, SharingStarted.Eagerly, LightStyle.REGULAR)
-    val darkStyle: StateFlow<DarkStyle> =
-        settingsRepo.darkStyle.stateIn(viewModelScope, SharingStarted.Eagerly, DarkStyle.REGULAR)
+
+    // Available themes (loaded from JSON assets) and the current selections.
+    val lightThemes: List<ThemeSpec> = ThemeRepository.lightThemes(app)
+    val darkThemes: List<ThemeSpec> = ThemeRepository.darkThemes(app)
+
+    val lightThemeId: StateFlow<String> =
+        settingsRepo.lightThemeId.stateIn(
+            viewModelScope, SharingStarted.Eagerly, ThemeRepository.DEFAULT_LIGHT_ID
+        )
+    val darkThemeId: StateFlow<String> =
+        settingsRepo.darkThemeId.stateIn(
+            viewModelScope, SharingStarted.Eagerly, ThemeRepository.DEFAULT_DARK_ID
+        )
+
+    /** The resolved light/dark [ThemeSpec] for the current selections. */
+    val lightTheme: StateFlow<ThemeSpec?> =
+        settingsRepo.lightThemeId
+            .map { ThemeRepository.lightOrDefault(app, it) }
+            .stateIn(
+                viewModelScope, SharingStarted.Eagerly,
+                ThemeRepository.lightOrDefault(app, ThemeRepository.DEFAULT_LIGHT_ID)
+            )
+    val darkTheme: StateFlow<ThemeSpec?> =
+        settingsRepo.darkThemeId
+            .map { ThemeRepository.darkOrDefault(app, it) }
+            .stateIn(
+                viewModelScope, SharingStarted.Eagerly,
+                ThemeRepository.darkOrDefault(app, ThemeRepository.DEFAULT_DARK_ID)
+            )
+
     val viewFontId: StateFlow<String?> =
         settingsRepo.viewFontId.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val editFontId: StateFlow<String?> =
         settingsRepo.editFontId.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val viewFontSize: StateFlow<Float> =
+        settingsRepo.viewFontSize.stateIn(viewModelScope, SharingStarted.Eagerly, FontSizes.DEFAULT)
+    val editFontSize: StateFlow<Float> =
+        settingsRepo.editFontSize.stateIn(viewModelScope, SharingStarted.Eagerly, FontSizes.DEFAULT)
     val viewCustomFontSet: StateFlow<CustomFontSet> =
         settingsRepo.viewCustomFontSet.stateIn(viewModelScope, SharingStarted.Eagerly, CustomFontSet())
     val editCustomFontSet: StateFlow<CustomFontSet> =
@@ -234,10 +266,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- Settings ----
     fun setThemeMode(mode: ThemeMode) = viewModelScope.launch { settingsRepo.setThemeMode(mode) }
-    fun setLightStyle(style: LightStyle) = viewModelScope.launch { settingsRepo.setLightStyle(style) }
-    fun setDarkStyle(style: DarkStyle) = viewModelScope.launch { settingsRepo.setDarkStyle(style) }
+    fun setLightThemeId(id: String) = viewModelScope.launch { settingsRepo.setLightThemeId(id) }
+    fun setDarkThemeId(id: String) = viewModelScope.launch { settingsRepo.setDarkThemeId(id) }
     fun setViewFontId(id: String) = viewModelScope.launch { settingsRepo.setViewFontId(id) }
     fun setEditFontId(id: String) = viewModelScope.launch { settingsRepo.setEditFontId(id) }
+
+    /** Sets a tab's font size (sp). Passing null restores the default. */
+    fun setFontSize(forView: Boolean, sizeSp: Float?) =
+        viewModelScope.launch { settingsRepo.setFontSize(forView, sizeSp) }
 
     // ---- Workspaces ----
     fun addWorkspace(treeUri: String, name: String) = viewModelScope.launch {

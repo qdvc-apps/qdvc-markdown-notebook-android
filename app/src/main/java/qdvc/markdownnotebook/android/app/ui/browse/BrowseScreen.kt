@@ -1,6 +1,8 @@
 package qdvc.markdownnotebook.android.app.ui.browse
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -153,13 +155,17 @@ fun BrowseScreen(
             targetState = depth,
             transitionSpec = {
                 val deeper = targetState > initialState
-                if (deeper) {
+                val spec = if (deeper) {
                     (slideInHorizontally(tween(280)) { it } + fadeIn()) togetherWith
                         (slideOutHorizontally(tween(280)) { -it / 4 } + fadeOut())
                 } else {
                     (slideInHorizontally(tween(280)) { -it / 4 } + fadeIn()) togetherWith
                         (slideOutHorizontally(tween(280)) { it } + fadeOut())
                 }
+                // Snap the container size instead of animating it, so screens of
+                // different heights slide straight across rather than appearing
+                // to move diagonally from a corner.
+                spec.using(SizeTransform(clip = false) { _, _ -> snap() })
             },
             label = "browseTransition",
             contentKey = { browse.mode },

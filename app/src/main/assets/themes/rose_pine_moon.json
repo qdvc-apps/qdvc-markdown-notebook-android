@@ -1,0 +1,18 @@
+{
+  "id": "rose_pine_moon",
+  "name": "Rose Pine Moon",
+  "dark": true,
+  "colors": {
+    "background": "#232136",
+    "surface": "#2A273F",
+    "surfaceVariant": "#393552",
+    "onBackground": "#E0DEF4",
+    "onSurfaceVariant": "#908CAA",
+    "outline": "#44415A",
+    "primary": "#C4A7E7",
+    "onPrimary": "#232136",
+    "secondary": "#EA9A97",
+    "onSecondary": "#232136",
+    "error": "#EB6F92"
+  }
+}

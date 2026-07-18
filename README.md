@@ -36,22 +36,27 @@ straight back to the original `.md` / `.markdown` files.
   hierarchy, and re-tapping the Browse tab jumps straight to the workspace list.
   Inside the folder browser a toolbar button creates a new note. Tapping a note
   opens it and jumps to View. The overflow menu on the workspace list holds
-  Settings (Appearance; Light Mode Style and Dark Mode Style — each offering a
-  Regular option plus an Everforest palette, and Dark also offering pure-black
-  OLED; and
-  separate View Font and Edit Font pickers that list and preview the fonts
-  actually installed on the device, plus a custom-font option with four file
-  slots (regular, italic, bold, bold-italic) so syntax highlighting uses the
-  right face. Chosen custom fonts are copied into the app's own storage — up to
-  eight files (four per tab) at fixed paths, each overwritten when re-chosen —
-  so they can't go missing between sessions. The status bar matches the top app
-  bars and the navigation bar matches the bottom navigation bar.
+  Settings: Appearance (Automatic/Light/Dark); a Light Mode Style and a Dark
+  Mode Style, each a list of colour themes; separate View Font and Edit Font
+  pickers that list and preview the fonts installed on the device, plus a
+  custom-font option with four file slots (regular, italic, bold, bold-italic)
+  so syntax highlighting uses the right face (custom fonts are copied into the
+  app's own storage — up to eight files, four per tab, each overwritten when
+  re-chosen — so they can't go missing between sessions); and adjustable View
+  and Edit font sizes with a one-tap restore to default. The status bar matches
+  the top app bars and the navigation bar matches the bottom navigation bar.
+- **Themes** — colour themes are plain JSON files under
+  `app/src/main/assets/themes/` (one per theme: an id, a name, a `dark` flag,
+  and the handful of colour roles the app uses). Built-in themes include
+  Regular Light/Dark, Pure Black (OLED), Everforest Light/Dark, and Rose Pine,
+  Rose Pine Moon (dark) and Rose Pine Dawn (light). Dropping a new JSON file in
+  that folder adds a new selectable theme.
 - **View** — the open note, read-only but selectable (long-press to select and
   copy). Markdown is shown through syntax highlighting, never by resizing text;
-  the highlight colours follow the active theme (including the Everforest
-  palettes). Wrapped lines of a list item hang-indent to align under the item's
-  text, so multi-line and nested bullets stay visually aligned.
-  The font is whatever you pick under Settings → Fonts → View Font.
+  the highlight colours follow the active theme. Wrapped lines of a list item
+  hang-indent to align under the item's text, so multi-line and nested bullets
+  stay visually aligned (in both View and Edit).
+  The font and size come from Settings → Fonts / Font size → View.
 - **Edit** — the same, but writable, with its own font choice (Settings → Fonts
   → Edit Font). A Save button appears only when there are unsaved changes.
 - **Jump** — every open note, for quick switching. Swipe a row to reveal a red

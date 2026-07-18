@@ -1,0 +1,18 @@
+{
+  "id": "regular_dark",
+  "name": "Regular Dark Mode",
+  "dark": true,
+  "colors": {
+    "background": "#181B21",
+    "surface": "#20242C",
+    "surfaceVariant": "#2A2F39",
+    "onBackground": "#E4E2DC",
+    "onSurfaceVariant": "#AAB0BB",
+    "outline": "#3A404B",
+    "primary": "#7FB4A0",
+    "onPrimary": "#000000",
+    "secondary": "#E6A277",
+    "onSecondary": "#000000",
+    "error": "#E5645A"
+  }
+}

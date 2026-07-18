@@ -1,6 +1,8 @@
 package qdvc.markdownnotebook.android.app.ui.settings
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -14,10 +16,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Clear
@@ -27,6 +31,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.FontDownload
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -35,6 +40,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -47,14 +53,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import qdvc.markdownnotebook.android.app.model.CustomFontSet
-import qdvc.markdownnotebook.android.app.model.DarkStyle
+import qdvc.markdownnotebook.android.app.model.FontSizes
 import qdvc.markdownnotebook.android.app.model.FontVariant
-import qdvc.markdownnotebook.android.app.model.LightStyle
 import qdvc.markdownnotebook.android.app.model.ThemeMode
+import qdvc.markdownnotebook.android.app.model.ThemeSpec
 import qdvc.markdownnotebook.android.app.util.CustomFont
 import qdvc.markdownnotebook.android.app.util.SystemFont
 
@@ -72,8 +79,10 @@ private enum class SettingsPage {
 @Composable
 fun SettingsScreen(
     themeMode: ThemeMode,
-    lightStyle: LightStyle,
-    darkStyle: DarkStyle,
+    lightThemes: List<ThemeSpec>,
+    darkThemes: List<ThemeSpec>,
+    lightThemeId: String,
+    darkThemeId: String,
     systemFonts: List<SystemFont>,
     viewFontId: String?,
     editFontId: String?,
@@ -81,11 +90,14 @@ fun SettingsScreen(
     editCustomSet: CustomFontSet,
     viewCustomFont: CustomFont?,
     editCustomFont: CustomFont?,
+    viewFontSize: Float,
+    editFontSize: Float,
     onThemeMode: (ThemeMode) -> Unit,
-    onLightStyle: (LightStyle) -> Unit,
-    onDarkStyle: (DarkStyle) -> Unit,
+    onLightThemeId: (String) -> Unit,
+    onDarkThemeId: (String) -> Unit,
     onViewFontId: (String) -> Unit,
     onEditFontId: (String) -> Unit,
+    onFontSize: (forView: Boolean, sizeSp: Float?) -> Unit,
     onSelectCustom: (forView: Boolean) -> Unit,
     onPickCustomVariant: (forView: Boolean, variant: FontVariant) -> Unit,
     onClearCustomVariant: (forView: Boolean, variant: FontVariant) -> Unit,
@@ -140,13 +152,16 @@ fun SettingsScreen(
             targetState = page,
             transitionSpec = {
                 val deeper = settingsDepth(targetState) > settingsDepth(initialState)
-                if (deeper) {
+                val spec = if (deeper) {
                     (slideInHorizontally(tween(280)) { it } + fadeIn()) togetherWith
                         (slideOutHorizontally(tween(280)) { -it / 4 } + fadeOut())
                 } else {
                     (slideInHorizontally(tween(280)) { -it / 4 } + fadeIn()) togetherWith
                         (slideOutHorizontally(tween(280)) { it } + fadeOut())
                 }
+                // Snap container size so pages of different heights slide straight
+                // across rather than drifting diagonally from a corner.
+                spec.using(SizeTransform(clip = false) { _, _ -> snap() })
             },
             label = "settingsTransition",
             modifier = Modifier.fillMaxSize().padding(padding),
@@ -168,13 +183,13 @@ fun SettingsScreen(
                         NavRow(
                             icon = { Icon(Icons.Filled.LightMode, null, tint = MaterialTheme.colorScheme.primary) },
                             title = "Light Mode Style",
-                            subtitle = lightStyle.label,
+                            subtitle = lightThemes.firstOrNull { it.id == lightThemeId }?.name ?: lightThemeId,
                             onClick = { page = SettingsPage.LIGHT_STYLE },
                         )
                         NavRow(
                             icon = { Icon(Icons.Filled.Contrast, null, tint = MaterialTheme.colorScheme.primary) },
                             title = "Dark Mode Style",
-                            subtitle = darkStyle.label,
+                            subtitle = darkThemes.firstOrNull { it.id == darkThemeId }?.name ?: darkThemeId,
                             onClick = { page = SettingsPage.DARK_STYLE },
                         )
                         SectionHeader("Fonts")
@@ -189,6 +204,19 @@ fun SettingsScreen(
                             title = "Edit Font",
                             subtitle = fontDisplayName(editFontId, systemFonts),
                             onClick = { page = SettingsPage.EDIT_FONT },
+                        )
+                        SectionHeader("Font size")
+                        FontSizeRow(
+                            title = "View Font Size",
+                            sizeSp = viewFontSize,
+                            onSet = { onFontSize(true, it) },
+                            onReset = { onFontSize(true, null) },
+                        )
+                        FontSizeRow(
+                            title = "Edit Font Size",
+                            sizeSp = editFontSize,
+                            onSet = { onFontSize(false, it) },
+                            onReset = { onFontSize(false, null) },
                         )
                     }
 
@@ -205,31 +233,22 @@ fun SettingsScreen(
 
                     SettingsPage.LIGHT_STYLE -> {
                         SectionHeader("When light mode is active")
-                        LightStyle.entries.forEach { style ->
+                        lightThemes.forEach { theme ->
                             ChoiceRow(
-                                label = style.label,
-                                subtitle = when (style) {
-                                    LightStyle.REGULAR -> "Warm paper tones with a sage accent."
-                                    LightStyle.EVERFOREST -> "Everforest light palette (medium contrast)."
-                                },
-                                selected = style == lightStyle,
-                                onClick = { onLightStyle(style) },
+                                label = theme.name,
+                                selected = theme.id == lightThemeId,
+                                onClick = { onLightThemeId(theme.id) },
                             )
                         }
                     }
 
                     SettingsPage.DARK_STYLE -> {
                         SectionHeader("When dark mode is active")
-                        DarkStyle.entries.forEach { style ->
+                        darkThemes.forEach { theme ->
                             ChoiceRow(
-                                label = style.label,
-                                subtitle = when (style) {
-                                    DarkStyle.REGULAR -> "Dark grey surfaces and backgrounds."
-                                    DarkStyle.PURE_BLACK -> "True black for larger surfaces, best on OLED screens."
-                                    DarkStyle.EVERFOREST -> "Everforest dark palette (medium contrast)."
-                                },
-                                selected = style == darkStyle,
-                                onClick = { onDarkStyle(style) },
+                                label = theme.name,
+                                selected = theme.id == darkThemeId,
+                                onClick = { onDarkThemeId(theme.id) },
                             )
                         }
                     }
@@ -292,6 +311,54 @@ private fun settingsDepth(page: SettingsPage): Int = when (page) {
     SettingsPage.ROOT -> 0
     SettingsPage.VIEW_CUSTOM, SettingsPage.EDIT_CUSTOM -> 2
     else -> 1
+}
+
+@Composable
+private fun FontSizeRow(
+    title: String,
+    sizeSp: Float,
+    onSet: (Float) -> Unit,
+    onReset: () -> Unit,
+) {
+    val atDefault = sizeSp == FontSizes.DEFAULT
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
+            Text(
+                text = "${sizeSp.toInt()} sp" + if (atDefault) " (default)" else "",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 13.sp,
+            )
+        }
+        if (!atDefault) {
+            TextButton(onClick = onReset) { Text("Reset") }
+        }
+        IconButton(
+            onClick = { onSet((sizeSp - FontSizes.STEP).coerceAtLeast(FontSizes.MIN)) },
+            enabled = sizeSp > FontSizes.MIN,
+        ) {
+            Icon(Icons.Filled.Remove, contentDescription = "Decrease $title")
+        }
+        Text(
+            text = sizeSp.toInt().toString(),
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 16.sp,
+            modifier = Modifier.widthIn(min = 24.dp),
+            textAlign = TextAlign.Center,
+        )
+        IconButton(
+            onClick = { onSet((sizeSp + FontSizes.STEP).coerceAtMost(FontSizes.MAX)) },
+            enabled = sizeSp < FontSizes.MAX,
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = "Increase $title")
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 }
 
 @Composable
