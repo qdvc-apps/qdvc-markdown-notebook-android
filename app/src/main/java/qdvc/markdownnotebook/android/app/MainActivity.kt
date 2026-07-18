@@ -29,6 +29,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.documentfile.provider.DocumentFile
 import qdvc.markdownnotebook.android.app.model.ThemeMode
+import qdvc.markdownnotebook.android.app.model.FontVariant
 import qdvc.markdownnotebook.android.app.model.Tab
 import qdvc.markdownnotebook.android.app.ui.browse.BrowseScreen
 import qdvc.markdownnotebook.android.app.ui.components.BottomBar
@@ -41,6 +42,9 @@ import qdvc.markdownnotebook.android.app.ui.view.ViewScreen
 class MainActivity : ComponentActivity() {
 
     private val vm: AppViewModel by viewModels()
+
+    // Set just before launching the font picker; invoked with the picked file.
+    private var onFontPicked: ((Uri) -> Unit)? = null
 
     // SAF folder picker. On result we persist read/write permission and add the
     // folder as a workspace.
@@ -57,6 +61,25 @@ class MainActivity : ComponentActivity() {
                 vm.addWorkspace(uri.toString(), name)
             }
         }
+
+    // Font file picker. We accept any file and validate it as a font on copy;
+    // the file is copied into app storage immediately, so no persistable URI
+    // permission is needed.
+    private val openFontFile =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            if (uri != null) onFontPicked?.invoke(uri)
+            onFontPicked = null
+        }
+
+    /** Launches the system file picker to choose a font file. */
+    fun pickFontFile(onResult: (Uri) -> Unit) {
+        onFontPicked = onResult
+        // Common font MIME types plus a wildcard, since many providers report
+        // fonts as application/octet-stream.
+        openFontFile.launch(
+            arrayOf("font/ttf", "font/otf", "application/x-font-ttf", "application/octet-stream", "*/*")
+        )
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,7 +98,15 @@ class MainActivity : ComponentActivity() {
 
             MarkdownNotesTheme(themeMode = themeMode, darkStyle = darkStyle) {
                 SystemBars(darkTheme = darkTheme)
-                AppRoot(vm = vm, onPickFolder = { openFolder.launch(null) })
+                AppRoot(
+                    vm = vm,
+                    onPickFolder = { openFolder.launch(null) },
+                    onPickCustomVariant = { forView, variant ->
+                        pickFontFile { uri ->
+                            vm.setCustomFontVariant(forView, variant, uri)
+                        }
+                    },
+                )
             }
         }
     }
@@ -108,7 +139,11 @@ private fun SystemBars(darkTheme: Boolean) {
 }
 
 @Composable
-private fun AppRoot(vm: AppViewModel, onPickFolder: () -> Unit) {
+private fun AppRoot(
+    vm: AppViewModel,
+    onPickFolder: () -> Unit,
+    onPickCustomVariant: (forView: Boolean, variant: FontVariant) -> Unit,
+) {
     val workspaces by vm.workspaces.collectAsState()
     val browse by vm.browse.collectAsState()
     val openNotes by vm.openNotes.collectAsState()
@@ -117,6 +152,10 @@ private fun AppRoot(vm: AppViewModel, onPickFolder: () -> Unit) {
     val viewFontId by vm.viewFontId.collectAsState()
     val editFontId by vm.editFontId.collectAsState()
     val systemFonts by vm.systemFonts.collectAsState()
+    val viewCustomSet by vm.viewCustomFontSet.collectAsState()
+    val editCustomSet by vm.editCustomFontSet.collectAsState()
+    val viewCustomFont by vm.viewCustomFont.collectAsState()
+    val editCustomFont by vm.editCustomFont.collectAsState()
 
     var showSettings by remember { mutableStateOf(false) }
 
@@ -132,10 +171,19 @@ private fun AppRoot(vm: AppViewModel, onPickFolder: () -> Unit) {
             systemFonts = systemFonts,
             viewFontId = viewFontId,
             editFontId = editFontId,
+            viewCustomSet = viewCustomSet,
+            editCustomSet = editCustomSet,
+            viewCustomFont = viewCustomFont,
+            editCustomFont = editCustomFont,
             onThemeMode = vm::setThemeMode,
             onDarkStyle = vm::setDarkStyle,
             onViewFontId = vm::setViewFontId,
             onEditFontId = vm::setEditFontId,
+            onSelectCustom = vm::selectCustomFont,
+            onPickCustomVariant = onPickCustomVariant,
+            onClearCustomVariant = { forView, variant ->
+                vm.clearCustomFontVariant(forView, variant)
+            },
             onClose = { showSettings = false },
         )
         return
@@ -179,12 +227,12 @@ private fun AppRoot(vm: AppViewModel, onPickFolder: () -> Unit) {
 
                 Tab.VIEW -> ViewScreen(
                     note = currentNote,
-                    fontFamily = vm.fontFamilyFor(viewFontId),
+                    fontFamily = vm.fontFamilyFor(viewFontId, forView = true),
                 )
 
                 Tab.EDIT -> EditScreen(
                     note = currentNote,
-                    fontFamily = vm.fontFamilyFor(editFontId),
+                    fontFamily = vm.fontFamilyFor(editFontId, forView = false),
                     onDraftChange = { draft ->
                         currentNoteUri?.let { vm.updateDraft(it, draft) }
                     },

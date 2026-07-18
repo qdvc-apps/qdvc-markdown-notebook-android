@@ -7,7 +7,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import qdvc.markdownnotebook.android.app.model.CustomFontSet
 import qdvc.markdownnotebook.android.app.model.DarkStyle
+import qdvc.markdownnotebook.android.app.model.FontVariant
 import qdvc.markdownnotebook.android.app.model.PersistedOpenNote
 import qdvc.markdownnotebook.android.app.model.ThemeMode
 import qdvc.markdownnotebook.android.app.model.Workspace
@@ -33,6 +35,17 @@ class SettingsRepository(private val context: Context) {
         val WORKSPACE_ORDER = stringPreferencesKey("workspace_order")
         val OPEN_NOTES = stringPreferencesKey("open_notes")
         val CURRENT_NOTE = stringPreferencesKey("current_note")
+
+        // Custom font slot display names (one per tab+variant). Presence of a
+        // name mirrors the presence of the copied font file in app storage.
+        val VIEW_FONT_REGULAR = stringPreferencesKey("view_font_regular_name")
+        val VIEW_FONT_ITALIC = stringPreferencesKey("view_font_italic_name")
+        val VIEW_FONT_BOLD = stringPreferencesKey("view_font_bold_name")
+        val VIEW_FONT_BOLD_ITALIC = stringPreferencesKey("view_font_bold_italic_name")
+        val EDIT_FONT_REGULAR = stringPreferencesKey("edit_font_regular_name")
+        val EDIT_FONT_ITALIC = stringPreferencesKey("edit_font_italic_name")
+        val EDIT_FONT_BOLD = stringPreferencesKey("edit_font_bold_name")
+        val EDIT_FONT_BOLD_ITALIC = stringPreferencesKey("edit_font_bold_italic_name")
     }
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data.map {
@@ -43,10 +56,28 @@ class SettingsRepository(private val context: Context) {
         DarkStyle.fromName(it[Keys.DARK_STYLE])
     }
 
-    // Font selection is stored as the font's id (its file path). A null/absent
-    // value means "use the app default".
+    // Font selection is stored as the font's id: the default sentinel, a system
+    // font's file path, or the custom sentinel (see CUSTOM_FONT_ID) meaning
+    // "use this tab's custom font set".
     val viewFontId: Flow<String?> = context.dataStore.data.map { it[Keys.VIEW_FONT] }
     val editFontId: Flow<String?> = context.dataStore.data.map { it[Keys.EDIT_FONT] }
+
+    val viewCustomFontSet: Flow<CustomFontSet> = context.dataStore.data.map { prefs ->
+        CustomFontSet(
+            regularName = prefs[Keys.VIEW_FONT_REGULAR],
+            italicName = prefs[Keys.VIEW_FONT_ITALIC],
+            boldName = prefs[Keys.VIEW_FONT_BOLD],
+            boldItalicName = prefs[Keys.VIEW_FONT_BOLD_ITALIC],
+        )
+    }
+    val editCustomFontSet: Flow<CustomFontSet> = context.dataStore.data.map { prefs ->
+        CustomFontSet(
+            regularName = prefs[Keys.EDIT_FONT_REGULAR],
+            italicName = prefs[Keys.EDIT_FONT_ITALIC],
+            boldName = prefs[Keys.EDIT_FONT_BOLD],
+            boldItalicName = prefs[Keys.EDIT_FONT_BOLD_ITALIC],
+        )
+    }
 
     val workspaces: Flow<List<Workspace>> = context.dataStore.data.map { prefs ->
         val raw = prefs[Keys.WORKSPACES] ?: emptySet()
@@ -72,6 +103,27 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setEditFontId(id: String) {
         context.dataStore.edit { it[Keys.EDIT_FONT] = id }
+    }
+
+    /** Records or clears the stored display name for one custom-font slot. */
+    suspend fun setCustomFontVariantName(forView: Boolean, variant: FontVariant, name: String?) {
+        val key = when (forView) {
+            true -> when (variant) {
+                FontVariant.REGULAR -> Keys.VIEW_FONT_REGULAR
+                FontVariant.ITALIC -> Keys.VIEW_FONT_ITALIC
+                FontVariant.BOLD -> Keys.VIEW_FONT_BOLD
+                FontVariant.BOLD_ITALIC -> Keys.VIEW_FONT_BOLD_ITALIC
+            }
+            false -> when (variant) {
+                FontVariant.REGULAR -> Keys.EDIT_FONT_REGULAR
+                FontVariant.ITALIC -> Keys.EDIT_FONT_ITALIC
+                FontVariant.BOLD -> Keys.EDIT_FONT_BOLD
+                FontVariant.BOLD_ITALIC -> Keys.EDIT_FONT_BOLD_ITALIC
+            }
+        }
+        context.dataStore.edit { prefs ->
+            if (name == null) prefs.remove(key) else prefs[key] = name
+        }
     }
 
     suspend fun addWorkspace(workspace: Workspace) {

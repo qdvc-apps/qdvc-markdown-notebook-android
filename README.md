@@ -33,8 +33,12 @@ straight back to the original `.md` / `.markdown` files.
   note. Tapping a note opens it and jumps to View. The overflow menu holds
   Settings (Appearance; Dark Mode Style with a pure-black OLED option; and
   separate View Font and Edit Font pickers that list and preview the fonts
-  actually installed on the device). The status bar matches the top app bars
-  and the navigation bar matches the bottom navigation bar.
+  actually installed on the device, plus a custom-font option with four file
+  slots (regular, italic, bold, bold-italic) so syntax highlighting uses the
+  right face. Chosen custom fonts are copied into the app's own storage — up to
+  eight files (four per tab) at fixed paths, each overwritten when re-chosen —
+  so they can't go missing between sessions. The status bar matches the top app
+  bars and the navigation bar matches the bottom navigation bar.
 - **View** — the open note, read-only but selectable (long-press to select and
   copy). Markdown is shown through syntax highlighting, never by resizing text.
   The font is whatever you pick under Settings → Fonts → View Font.

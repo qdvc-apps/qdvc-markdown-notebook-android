@@ -2,6 +2,7 @@ package qdvc.markdownnotebook.android.app.ui.edit
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
@@ -84,25 +85,33 @@ fun EditScreen(
             fieldValue.value = fieldValue.value.copy(text = note.draftContent)
         }
 
-        BasicTextField(
-            value = fieldValue.value,
-            onValueChange = {
-                fieldValue.value = it
-                onDraftChange(it.text)
-            },
-            modifier = Modifier
+        // imePadding shrinks the editor's viewport when the keyboard is up, so
+        // the whole note stays scrollable and reachable above the keyboard.
+        Box(
+            Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            textStyle = MaterialTheme.typography.bodyMedium.copy(
-                fontFamily = fontFamily,
-                fontSize = 14.sp,
-                lineHeight = 22.sp,
-                color = MaterialTheme.colorScheme.onSurface,
-            ),
-            cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
-            visualTransformation = transformation,
-        )
+                .imePadding()
+        ) {
+            BasicTextField(
+                value = fieldValue.value,
+                onValueChange = {
+                    fieldValue.value = it
+                    onDraftChange(it.text)
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp),
+                textStyle = MaterialTheme.typography.bodyMedium.copy(
+                    fontFamily = fontFamily,
+                    fontSize = 14.sp,
+                    lineHeight = 22.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                ),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
+                visualTransformation = transformation,
+            )
+        }
     }
 }

@@ -6,14 +6,18 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import qdvc.markdownnotebook.android.app.data.NoteRepository
 import qdvc.markdownnotebook.android.app.data.SettingsRepository
+import qdvc.markdownnotebook.android.app.model.CustomFontSet
 import qdvc.markdownnotebook.android.app.model.DarkStyle
 import qdvc.markdownnotebook.android.app.model.FolderEntry
+import qdvc.markdownnotebook.android.app.model.FontVariant
 import qdvc.markdownnotebook.android.app.model.OpenNote
 import qdvc.markdownnotebook.android.app.model.PersistedOpenNote
 import qdvc.markdownnotebook.android.app.model.Tab
 import qdvc.markdownnotebook.android.app.model.ThemeMode
 import qdvc.markdownnotebook.android.app.model.Workspace
+import qdvc.markdownnotebook.android.app.ui.settings.CUSTOM_FONT_ID
 import qdvc.markdownnotebook.android.app.ui.settings.DEFAULT_FONT_ID
+import qdvc.markdownnotebook.android.app.util.CustomFont
 import qdvc.markdownnotebook.android.app.util.SystemFont
 import qdvc.markdownnotebook.android.app.util.SystemFonts
 import kotlinx.coroutines.Dispatchers
@@ -55,12 +59,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         settingsRepo.viewFontId.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val editFontId: StateFlow<String?> =
         settingsRepo.editFontId.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val viewCustomFontSet: StateFlow<CustomFontSet> =
+        settingsRepo.viewCustomFontSet.stateIn(viewModelScope, SharingStarted.Eagerly, CustomFontSet())
+    val editCustomFontSet: StateFlow<CustomFontSet> =
+        settingsRepo.editCustomFontSet.stateIn(viewModelScope, SharingStarted.Eagerly, CustomFontSet())
     val workspaces: StateFlow<List<Workspace>> =
         settingsRepo.workspaces.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     // Fonts actually installed on this device, discovered once at startup.
     private val _systemFonts = MutableStateFlow<List<SystemFont>>(emptyList())
     val systemFonts: StateFlow<List<SystemFont>> = _systemFonts.asStateFlow()
+
+    // The loaded custom font (all supplied variants) for each tab. Rebuilt from
+    // the persisted URIs whenever the set changes. No fonts are stored in the
+    // app; a transient cache backs Compose's file-based Font API.
+    private val _viewCustomFont = MutableStateFlow<CustomFont?>(null)
+    val viewCustomFont: StateFlow<CustomFont?> = _viewCustomFont.asStateFlow()
+    private val _editCustomFont = MutableStateFlow<CustomFont?>(null)
+    val editCustomFont: StateFlow<CustomFont?> = _editCustomFont.asStateFlow()
 
     private val _currentTab = MutableStateFlow(Tab.BROWSE)
     val currentTab: StateFlow<Tab> = _currentTab.asStateFlow()
@@ -79,6 +95,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     init {
         restoreOpenNotes()
         loadSystemFonts()
+        // Load each tab's custom font from its copied slot files at startup.
+        reloadCustomFont(forView = true)
+        reloadCustomFont(forView = false)
     }
 
     private fun loadSystemFonts() {
@@ -88,15 +107,62 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun reloadCustomFont(forView: Boolean) {
+        viewModelScope.launch {
+            val ctx = getApplication<Application>()
+            val font = withContext(Dispatchers.IO) { SystemFonts.loadCustomFont(ctx, forView) }
+            if (forView) _viewCustomFont.value = font else _editCustomFont.value = font
+        }
+    }
+
     /**
-     * Resolves a stored font id to a Compose [FontFamily]. Falls back to the
-     * app default (monospace) when nothing is chosen or the chosen font is no
-     * longer available.
+     * Copies the font at [uri] into the fixed slot for (tab, variant),
+     * overwriting any existing file, records its name, and reloads the tab's
+     * custom font. Does nothing if the file isn't a usable font.
      */
-    fun fontFamilyFor(id: String?): FontFamily {
+    fun setCustomFontVariant(forView: Boolean, variant: FontVariant, uri: android.net.Uri) {
+        viewModelScope.launch {
+            val ctx = getApplication<Application>()
+            val name = withContext(Dispatchers.IO) {
+                SystemFonts.copyIntoSlot(ctx, uri, forView, variant)
+            }
+            if (name != null) {
+                settingsRepo.setCustomFontVariantName(forView, variant, name)
+                reloadCustomFont(forView)
+            }
+        }
+    }
+
+    /** Deletes one custom-font slot file and clears its stored name. */
+    fun clearCustomFontVariant(forView: Boolean, variant: FontVariant) {
+        viewModelScope.launch {
+            val ctx = getApplication<Application>()
+            withContext(Dispatchers.IO) { SystemFonts.clearSlot(ctx, forView, variant) }
+            settingsRepo.setCustomFontVariantName(forView, variant, null)
+            reloadCustomFont(forView)
+        }
+    }
+
+    /** Selects the custom font set for a tab (as opposed to default/system). */
+    fun selectCustomFont(forView: Boolean) {
+        viewModelScope.launch {
+            if (forView) settingsRepo.setViewFontId(CUSTOM_FONT_ID)
+            else settingsRepo.setEditFontId(CUSTOM_FONT_ID)
+        }
+    }
+
+    /**
+     * Resolves a tab's stored font id to a Compose [FontFamily]. Falls back to
+     * the app default (monospace) when nothing is chosen or the chosen font is
+     * unavailable. [forView] selects which tab's custom font to consult.
+     */
+    fun fontFamilyFor(id: String?, forView: Boolean): FontFamily {
         if (id == null || id == DEFAULT_FONT_ID) return FontFamily.Monospace
-        return _systemFonts.value.firstOrNull { it.id == id }?.fontFamily
-            ?: FontFamily.Monospace
+        if (id == CUSTOM_FONT_ID) {
+            val custom = if (forView) _viewCustomFont.value else _editCustomFont.value
+            return custom?.fontFamily ?: FontFamily.Monospace
+        }
+        return _systemFonts.value.firstOrNull { it.id == id }?.fontFamily ?: FontFamily.Monospace
     }
 
     /**
