@@ -83,19 +83,23 @@ class MainActivity : ComponentActivity() {
 }
 
 /**
- * Makes the status bar and navigation bar transparent (the app draws its own
- * themed surfaces behind them) and sets the system icon colour to match the
- * active light/dark theme, so the bars stop rendering as plain black.
+ * Themes the system bars. The status bar is coloured to match the app's top
+ * app bars, and the navigation bar (back / home / menu) is coloured to match
+ * the app's bottom navigation bar — both use the surface colour, so the system
+ * bars blend into the app's own bars. Icon contrast follows the light/dark
+ * theme so the bars never render as plain black.
  */
 @Composable
 private fun SystemBars(darkTheme: Boolean) {
     val view = LocalView.current
-    val scrimColor = MaterialTheme.colorScheme.surface.toArgb()
+    // Top app bars use `surface`; the bottom NavigationBar also uses `surface`
+    // (set explicitly in BottomBar), so a single surface colour matches both.
+    val barColor = MaterialTheme.colorScheme.surface.toArgb()
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as android.app.Activity).window
-            window.statusBarColor = scrimColor
-            window.navigationBarColor = scrimColor
+            window.statusBarColor = barColor
+            window.navigationBarColor = barColor
             val controller = WindowInsetsControllerCompat(window, view)
             // Light (dark = false) theme -> dark icons; dark theme -> light icons.
             controller.isAppearanceLightStatusBars = !darkTheme

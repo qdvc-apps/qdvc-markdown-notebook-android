@@ -51,7 +51,7 @@ fun ViewScreen(note: OpenNote?, fontFamily: FontFamily) {
             return@Scaffold
         }
         val annotated = remember(note.draftContent, syntaxColors, fontFamily) {
-            MarkdownHighlighter.highlight(note.draftContent, syntaxColors, fontFamily)
+            MarkdownHighlighter.highlight(note.draftContent, syntaxColors, fontFamily, render = true)
         }
         // SelectionContainer makes the read-only text selectable/copyable.
         SelectionContainer {

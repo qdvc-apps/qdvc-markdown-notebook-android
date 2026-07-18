@@ -30,3 +30,14 @@ data class OpenNote(
 ) {
     val hasUnsavedChanges: Boolean get() = savedContent != draftContent
 }
+
+/**
+ * The lightweight, on-disk description of an open note (its identity, not its
+ * content). Used to restore the Jump list on a fresh launch; content is
+ * re-read from the file itself.
+ */
+data class PersistedOpenNote(
+    val documentUri: String,
+    val displayName: String,
+    val workspaceName: String,
+)

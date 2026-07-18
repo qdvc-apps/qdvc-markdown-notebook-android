@@ -7,6 +7,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 
 /**
@@ -28,21 +29,32 @@ data class SyntaxColors(
 
 object MarkdownHighlighter {
 
+    /**
+     * @param render when true (the View tab), inline emphasis is *rendered*:
+     * bold text is bold, italics slant, strikethrough is struck through, and the
+     * surrounding markers are dimmed. When false (the Edit tab), markers keep
+     * full colour so the raw source stays clear for editing.
+     */
     fun highlight(
         text: String,
         colors: SyntaxColors,
         fontFamily: FontFamily,
+        render: Boolean = false,
     ): AnnotatedString = buildAnnotatedString {
         withStyle(SpanStyle(fontFamily = fontFamily)) {
             val lines = text.split("\n")
             lines.forEachIndexed { index, line ->
-                appendLine(line, colors)
+                appendLine(line, colors, render)
                 if (index != lines.lastIndex) append("\n")
             }
         }
     }
 
-    private fun AnnotatedString.Builder.appendLine(line: String, c: SyntaxColors) {
+    private fun AnnotatedString.Builder.appendLine(
+        line: String,
+        c: SyntaxColors,
+        render: Boolean,
+    ) {
         val trimmed = line.trimStart()
         val indent = line.length - trimmed.length
         if (indent > 0) append(line.substring(0, indent))
@@ -74,14 +86,14 @@ object MarkdownHighlighter {
             withStyle(SpanStyle(color = c.listMarker, fontWeight = FontWeight.Bold)) {
                 append(ulMatch.value)
             }
-            appendInline(trimmed.substring(ulMatch.value.length), c)
+            appendInline(trimmed.substring(ulMatch.value.length), c, render)
             return
         }
         if (olMatch != null) {
             withStyle(SpanStyle(color = c.listMarker, fontWeight = FontWeight.Bold)) {
                 append(olMatch.value)
             }
-            appendInline(trimmed.substring(olMatch.value.length), c)
+            appendInline(trimmed.substring(olMatch.value.length), c, render)
             return
         }
 
@@ -91,11 +103,17 @@ object MarkdownHighlighter {
             return
         }
 
-        appendInline(trimmed, c)
+        appendInline(trimmed, c, render)
     }
 
-    // Handles inline spans: `code`, **bold**, *italic*, [text](url).
-    private fun AnnotatedString.Builder.appendInline(text: String, c: SyntaxColors) {
+    // Handles inline spans: `code`, **bold**, *italic*/_italic_, ~~strike~~,
+    // [text](url). In render mode the markers are dimmed and the inner text
+    // carries the real style; otherwise markers keep full colour.
+    private fun AnnotatedString.Builder.appendInline(
+        text: String,
+        c: SyntaxColors,
+        render: Boolean,
+    ) {
         var i = 0
         val n = text.length
         while (i < n) {
@@ -110,11 +128,44 @@ object MarkdownHighlighter {
                         withStyle(SpanStyle(color = c.base)) { append(ch) }; i++
                     }
                 }
+                ch == '~' && i + 1 < n && text[i + 1] == '~' -> {
+                    val end = text.indexOf("~~", i + 2)
+                    if (end > i) {
+                        val inner = text.substring(i + 2, end)
+                        if (render) {
+                            marker(c, "~~")
+                            withStyle(
+                                SpanStyle(
+                                    color = c.base,
+                                    textDecoration = TextDecoration.LineThrough,
+                                )
+                            ) { append(inner) }
+                            marker(c, "~~")
+                        } else {
+                            withStyle(
+                                SpanStyle(
+                                    color = c.emphasis,
+                                    textDecoration = TextDecoration.LineThrough,
+                                )
+                            ) { append(text.substring(i, end + 2)) }
+                        }
+                        i = end + 2
+                    } else { withStyle(SpanStyle(color = c.base)) { append(ch) }; i++ }
+                }
                 ch == '*' && i + 1 < n && text[i + 1] == '*' -> {
                     val end = text.indexOf("**", i + 2)
                     if (end > i) {
-                        withStyle(SpanStyle(color = c.emphasis, fontWeight = FontWeight.Bold)) {
-                            append(text.substring(i, end + 2))
+                        val inner = text.substring(i + 2, end)
+                        if (render) {
+                            marker(c, "**")
+                            withStyle(SpanStyle(color = c.base, fontWeight = FontWeight.Bold)) {
+                                append(inner)
+                            }
+                            marker(c, "**")
+                        } else {
+                            withStyle(SpanStyle(color = c.emphasis, fontWeight = FontWeight.Bold)) {
+                                append(text.substring(i, end + 2))
+                            }
                         }
                         i = end + 2
                     } else { withStyle(SpanStyle(color = c.base)) { append(ch) }; i++ }
@@ -122,8 +173,17 @@ object MarkdownHighlighter {
                 (ch == '*' || ch == '_') -> {
                     val end = text.indexOf(ch, i + 1)
                     if (end > i) {
-                        withStyle(SpanStyle(color = c.emphasis, fontStyle = FontStyle.Italic)) {
-                            append(text.substring(i, end + 1))
+                        val inner = text.substring(i + 1, end)
+                        if (render) {
+                            marker(c, ch.toString())
+                            withStyle(SpanStyle(color = c.base, fontStyle = FontStyle.Italic)) {
+                                append(inner)
+                            }
+                            marker(c, ch.toString())
+                        } else {
+                            withStyle(SpanStyle(color = c.emphasis, fontStyle = FontStyle.Italic)) {
+                                append(text.substring(i, end + 1))
+                            }
                         }
                         i = end + 1
                     } else { withStyle(SpanStyle(color = c.base)) { append(ch) }; i++ }
@@ -145,5 +205,9 @@ object MarkdownHighlighter {
                 }
             }
         }
+    }
+
+    private fun AnnotatedString.Builder.marker(c: SyntaxColors, text: String) {
+        withStyle(SpanStyle(color = c.punctuation)) { append(text) }
     }
 }

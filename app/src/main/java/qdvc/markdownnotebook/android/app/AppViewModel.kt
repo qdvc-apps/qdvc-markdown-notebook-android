@@ -9,6 +9,7 @@ import qdvc.markdownnotebook.android.app.model.AppFont
 import qdvc.markdownnotebook.android.app.model.DarkStyle
 import qdvc.markdownnotebook.android.app.model.FolderEntry
 import qdvc.markdownnotebook.android.app.model.OpenNote
+import qdvc.markdownnotebook.android.app.model.PersistedOpenNote
 import qdvc.markdownnotebook.android.app.model.Tab
 import qdvc.markdownnotebook.android.app.model.ThemeMode
 import qdvc.markdownnotebook.android.app.model.Workspace
@@ -65,6 +66,49 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     val currentNoteUri: StateFlow<String?> = _currentNoteUri.asStateFlow()
 
     val hasCurrentNote: Boolean get() = _currentNoteUri.value != null
+
+    init {
+        restoreOpenNotes()
+    }
+
+    /**
+     * Rebuilds the Jump list from disk on launch. Each note's content is
+     * re-read from its file; notes whose files have vanished are dropped.
+     */
+    private fun restoreOpenNotes() {
+        viewModelScope.launch {
+            val persisted = settingsRepo.loadOpenNotes()
+            if (persisted.isEmpty()) return@launch
+            val restored = mutableListOf<OpenNote>()
+            for (p in persisted) {
+                if (!noteRepo.exists(p.documentUri)) continue
+                val content = noteRepo.readNote(p.documentUri)
+                restored.add(
+                    OpenNote(
+                        documentUri = p.documentUri,
+                        displayName = p.displayName,
+                        workspaceName = p.workspaceName,
+                        savedContent = content,
+                        draftContent = content,
+                    )
+                )
+            }
+            _openNotes.value = restored
+            val savedCurrent = settingsRepo.loadCurrentNoteUri()
+            _currentNoteUri.value = restored
+                .firstOrNull { it.documentUri == savedCurrent }?.documentUri
+                ?: restored.lastOrNull()?.documentUri
+        }
+    }
+
+    /** Writes the current Jump list + current selection to disk. */
+    private fun persistOpenNotes() {
+        val snapshot = _openNotes.value.map {
+            PersistedOpenNote(it.documentUri, it.displayName, it.workspaceName)
+        }
+        val current = _currentNoteUri.value
+        viewModelScope.launch { settingsRepo.saveOpenNotes(snapshot, current) }
+    }
 
     fun currentNote(): OpenNote? =
         _openNotes.value.firstOrNull { it.documentUri == _currentNoteUri.value }
@@ -152,6 +196,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (existing != null) {
             _currentNoteUri.value = existing.documentUri
             _currentTab.value = Tab.VIEW
+            persistOpenNotes()
             return
         }
         viewModelScope.launch {
@@ -166,6 +211,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             _openNotes.value = _openNotes.value + note
             _currentNoteUri.value = note.documentUri
             _currentTab.value = Tab.VIEW
+            persistOpenNotes()
         }
     }
 
@@ -201,11 +247,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 _currentTab.value = Tab.JUMP
             }
         }
+        persistOpenNotes()
     }
 
     fun setCurrentNote(uri: String) {
         if (_openNotes.value.any { it.documentUri == uri }) {
             _currentNoteUri.value = uri
+            persistOpenNotes()
         }
     }
 
@@ -215,5 +263,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val item = list.removeAt(from)
         list.add(to, item)
         _openNotes.value = list
+        persistOpenNotes()
     }
 }

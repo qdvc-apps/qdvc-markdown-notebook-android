@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -153,10 +154,11 @@ private fun JumpRow(
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
 ) {
-    val revealWidth = 96f
+    val revealWidthDp = 96.dp
+    val revealWidthPx = with(LocalDensity.current) { revealWidthDp.toPx() }
     var revealed by remember(note.documentUri) { mutableStateOf(false) }
     val offset by animateFloatAsState(
-        targetValue = if (revealed && !reordering) -revealWidth else 0f,
+        targetValue = if (revealed && !reordering) -revealWidthPx else 0f,
         label = "swipeOffset",
     )
 
@@ -175,7 +177,7 @@ private fun JumpRow(
         ) {
             Column(
                 modifier = Modifier
-                    .width(96.dp)
+                    .width(revealWidthDp)
                     .fillMaxSize()
                     .clickable(onClick = onRequestClose),
                 horizontalAlignment = Alignment.CenterHorizontally,
