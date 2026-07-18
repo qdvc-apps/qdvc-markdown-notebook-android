@@ -7,7 +7,6 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import qdvc.markdownnotebook.android.app.model.AppFont
 import qdvc.markdownnotebook.android.app.model.DarkStyle
 import qdvc.markdownnotebook.android.app.model.PersistedOpenNote
 import qdvc.markdownnotebook.android.app.model.ThemeMode
@@ -44,13 +43,10 @@ class SettingsRepository(private val context: Context) {
         DarkStyle.fromName(it[Keys.DARK_STYLE])
     }
 
-    val viewFont: Flow<AppFont> = context.dataStore.data.map {
-        AppFont.fromName(it[Keys.VIEW_FONT])
-    }
-
-    val editFont: Flow<AppFont> = context.dataStore.data.map {
-        AppFont.fromName(it[Keys.EDIT_FONT])
-    }
+    // Font selection is stored as the font's id (its file path). A null/absent
+    // value means "use the app default".
+    val viewFontId: Flow<String?> = context.dataStore.data.map { it[Keys.VIEW_FONT] }
+    val editFontId: Flow<String?> = context.dataStore.data.map { it[Keys.EDIT_FONT] }
 
     val workspaces: Flow<List<Workspace>> = context.dataStore.data.map { prefs ->
         val raw = prefs[Keys.WORKSPACES] ?: emptySet()
@@ -70,12 +66,12 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { it[Keys.DARK_STYLE] = style.name }
     }
 
-    suspend fun setViewFont(font: AppFont) {
-        context.dataStore.edit { it[Keys.VIEW_FONT] = font.name }
+    suspend fun setViewFontId(id: String) {
+        context.dataStore.edit { it[Keys.VIEW_FONT] = id }
     }
 
-    suspend fun setEditFont(font: AppFont) {
-        context.dataStore.edit { it[Keys.EDIT_FONT] = font.name }
+    suspend fun setEditFontId(id: String) {
+        context.dataStore.edit { it[Keys.EDIT_FONT] = id }
     }
 
     suspend fun addWorkspace(workspace: Workspace) {

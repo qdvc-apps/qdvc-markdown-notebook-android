@@ -1,11 +1,11 @@
 package qdvc.markdownnotebook.android.app
 
 import android.app.Application
+import androidx.compose.ui.text.font.FontFamily
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import qdvc.markdownnotebook.android.app.data.NoteRepository
 import qdvc.markdownnotebook.android.app.data.SettingsRepository
-import qdvc.markdownnotebook.android.app.model.AppFont
 import qdvc.markdownnotebook.android.app.model.DarkStyle
 import qdvc.markdownnotebook.android.app.model.FolderEntry
 import qdvc.markdownnotebook.android.app.model.OpenNote
@@ -13,12 +13,17 @@ import qdvc.markdownnotebook.android.app.model.PersistedOpenNote
 import qdvc.markdownnotebook.android.app.model.Tab
 import qdvc.markdownnotebook.android.app.model.ThemeMode
 import qdvc.markdownnotebook.android.app.model.Workspace
+import qdvc.markdownnotebook.android.app.ui.settings.DEFAULT_FONT_ID
+import qdvc.markdownnotebook.android.app.util.SystemFont
+import qdvc.markdownnotebook.android.app.util.SystemFonts
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * One level in the Browse navigation stack. [rootTreeUri] is the granted
@@ -46,12 +51,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         settingsRepo.themeMode.stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.AUTOMATIC)
     val darkStyle: StateFlow<DarkStyle> =
         settingsRepo.darkStyle.stateIn(viewModelScope, SharingStarted.Eagerly, DarkStyle.REGULAR)
-    val viewFont: StateFlow<AppFont> =
-        settingsRepo.viewFont.stateIn(viewModelScope, SharingStarted.Eagerly, AppFont.MONOSPACE)
-    val editFont: StateFlow<AppFont> =
-        settingsRepo.editFont.stateIn(viewModelScope, SharingStarted.Eagerly, AppFont.MONOSPACE)
+    val viewFontId: StateFlow<String?> =
+        settingsRepo.viewFontId.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val editFontId: StateFlow<String?> =
+        settingsRepo.editFontId.stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val workspaces: StateFlow<List<Workspace>> =
         settingsRepo.workspaces.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    // Fonts actually installed on this device, discovered once at startup.
+    private val _systemFonts = MutableStateFlow<List<SystemFont>>(emptyList())
+    val systemFonts: StateFlow<List<SystemFont>> = _systemFonts.asStateFlow()
 
     private val _currentTab = MutableStateFlow(Tab.BROWSE)
     val currentTab: StateFlow<Tab> = _currentTab.asStateFlow()
@@ -69,6 +78,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         restoreOpenNotes()
+        loadSystemFonts()
+    }
+
+    private fun loadSystemFonts() {
+        viewModelScope.launch {
+            val fonts = withContext(Dispatchers.IO) { SystemFonts.discover() }
+            _systemFonts.value = fonts
+        }
+    }
+
+    /**
+     * Resolves a stored font id to a Compose [FontFamily]. Falls back to the
+     * app default (monospace) when nothing is chosen or the chosen font is no
+     * longer available.
+     */
+    fun fontFamilyFor(id: String?): FontFamily {
+        if (id == null || id == DEFAULT_FONT_ID) return FontFamily.Monospace
+        return _systemFonts.value.firstOrNull { it.id == id }?.fontFamily
+            ?: FontFamily.Monospace
     }
 
     /**
@@ -123,8 +151,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- Settings ----
     fun setThemeMode(mode: ThemeMode) = viewModelScope.launch { settingsRepo.setThemeMode(mode) }
     fun setDarkStyle(style: DarkStyle) = viewModelScope.launch { settingsRepo.setDarkStyle(style) }
-    fun setViewFont(font: AppFont) = viewModelScope.launch { settingsRepo.setViewFont(font) }
-    fun setEditFont(font: AppFont) = viewModelScope.launch { settingsRepo.setEditFont(font) }
+    fun setViewFontId(id: String) = viewModelScope.launch { settingsRepo.setViewFontId(id) }
+    fun setEditFontId(id: String) = viewModelScope.launch { settingsRepo.setEditFontId(id) }
 
     // ---- Workspaces ----
     fun addWorkspace(treeUri: String, name: String) = viewModelScope.launch {

@@ -115,11 +115,14 @@ fun BrowseScreen(
             )
         },
     ) { padding ->
-        // Slide animation between the workspace home and the folder view.
+        // Slide animation between navigation levels: workspace home, a folder,
+        // and any nested subfolder. Going deeper slides in from the right;
+        // going back slides in from the left.
         AnimatedContent(
-            targetState = inFolder,
+            targetState = browse.stack.size,
             transitionSpec = {
-                if (targetState) {
+                val deeper = targetState > initialState
+                if (deeper) {
                     (slideInHorizontally(tween(280)) { it } + fadeIn()) togetherWith
                         (slideOutHorizontally(tween(280)) { -it / 4 } + fadeOut())
                 } else {
@@ -129,8 +132,8 @@ fun BrowseScreen(
             },
             label = "browseTransition",
             modifier = Modifier.fillMaxSize().padding(padding),
-        ) { showingFolder ->
-            if (!showingFolder) {
+        ) { depth ->
+            if (depth == 0) {
                 WorkspaceHome(
                     workspaces = workspaces,
                     onAdd = onAddWorkspace,

@@ -1,5 +1,12 @@
 package qdvc.markdownnotebook.android.app.ui.settings
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,9 +40,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import qdvc.markdownnotebook.android.app.model.AppFont
+import qdvc.markdownnotebook.android.app.util.SystemFont
 import qdvc.markdownnotebook.android.app.model.DarkStyle
 import qdvc.markdownnotebook.android.app.model.ThemeMode
 
@@ -46,12 +55,13 @@ private enum class SettingsPage { ROOT, APPEARANCE, DARK_STYLE, VIEW_FONT, EDIT_
 fun SettingsScreen(
     themeMode: ThemeMode,
     darkStyle: DarkStyle,
-    viewFont: AppFont,
-    editFont: AppFont,
+    systemFonts: List<SystemFont>,
+    viewFontId: String?,
+    editFontId: String?,
     onThemeMode: (ThemeMode) -> Unit,
     onDarkStyle: (DarkStyle) -> Unit,
-    onViewFont: (AppFont) -> Unit,
-    onEditFont: (AppFont) -> Unit,
+    onViewFontId: (String) -> Unit,
+    onEditFontId: (String) -> Unit,
     onClose: () -> Unit,
 ) {
     var page by remember { mutableStateOf(SettingsPage.ROOT) }
@@ -90,86 +100,100 @@ fun SettingsScreen(
             )
         },
     ) { padding ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-        ) {
-            when (page) {
-                SettingsPage.ROOT -> {
-                    SectionHeader("Display")
-                    NavRow(
-                        icon = { Icon(Icons.Filled.DarkMode, null, tint = MaterialTheme.colorScheme.primary) },
-                        title = "Appearance",
-                        subtitle = themeMode.label,
-                        onClick = { page = SettingsPage.APPEARANCE },
-                    )
-                    NavRow(
-                        icon = { Icon(Icons.Filled.Contrast, null, tint = MaterialTheme.colorScheme.primary) },
-                        title = "Dark Mode Style",
-                        subtitle = darkStyle.label,
-                        onClick = { page = SettingsPage.DARK_STYLE },
-                    )
-                    SectionHeader("Fonts")
-                    NavRow(
-                        icon = { Icon(Icons.Filled.Visibility, null, tint = MaterialTheme.colorScheme.primary) },
-                        title = "View Font",
-                        subtitle = viewFont.label,
-                        onClick = { page = SettingsPage.VIEW_FONT },
-                    )
-                    NavRow(
-                        icon = { Icon(Icons.Filled.Edit, null, tint = MaterialTheme.colorScheme.primary) },
-                        title = "Edit Font",
-                        subtitle = editFont.label,
-                        onClick = { page = SettingsPage.EDIT_FONT },
-                    )
+        // Slide between the settings root and its submenus, matching the Browse
+        // navigation animation: entering a submenu slides in from the right,
+        // going back slides in from the left.
+        AnimatedContent(
+            targetState = page,
+            transitionSpec = {
+                val deeper = settingsDepth(targetState) > settingsDepth(initialState)
+                if (deeper) {
+                    (slideInHorizontally(tween(280)) { it } + fadeIn()) togetherWith
+                        (slideOutHorizontally(tween(280)) { -it / 4 } + fadeOut())
+                } else {
+                    (slideInHorizontally(tween(280)) { -it / 4 } + fadeIn()) togetherWith
+                        (slideOutHorizontally(tween(280)) { it } + fadeOut())
                 }
-
-                SettingsPage.APPEARANCE -> {
-                    SectionHeader("Theme")
-                    ThemeMode.entries.forEach { mode ->
-                        ChoiceRow(
-                            label = mode.label,
-                            selected = mode == themeMode,
-                            onClick = { onThemeMode(mode) },
+            },
+            label = "settingsTransition",
+            modifier = Modifier.fillMaxSize().padding(padding),
+        ) { current ->
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                when (current) {
+                    SettingsPage.ROOT -> {
+                        SectionHeader("Display")
+                        NavRow(
+                            icon = { Icon(Icons.Filled.DarkMode, null, tint = MaterialTheme.colorScheme.primary) },
+                            title = "Appearance",
+                            subtitle = themeMode.label,
+                            onClick = { page = SettingsPage.APPEARANCE },
+                        )
+                        NavRow(
+                            icon = { Icon(Icons.Filled.Contrast, null, tint = MaterialTheme.colorScheme.primary) },
+                            title = "Dark Mode Style",
+                            subtitle = darkStyle.label,
+                            onClick = { page = SettingsPage.DARK_STYLE },
+                        )
+                        SectionHeader("Fonts")
+                        NavRow(
+                            icon = { Icon(Icons.Filled.Visibility, null, tint = MaterialTheme.colorScheme.primary) },
+                            title = "View Font",
+                            subtitle = fontDisplayName(viewFontId, systemFonts),
+                            onClick = { page = SettingsPage.VIEW_FONT },
+                        )
+                        NavRow(
+                            icon = { Icon(Icons.Filled.Edit, null, tint = MaterialTheme.colorScheme.primary) },
+                            title = "Edit Font",
+                            subtitle = fontDisplayName(editFontId, systemFonts),
+                            onClick = { page = SettingsPage.EDIT_FONT },
                         )
                     }
-                }
 
-                SettingsPage.DARK_STYLE -> {
-                    SectionHeader("When dark mode is active")
-                    DarkStyle.entries.forEach { style ->
-                        ChoiceRow(
-                            label = style.label,
-                            subtitle = when (style) {
-                                DarkStyle.REGULAR -> "Dark grey surfaces and backgrounds."
-                                DarkStyle.PURE_BLACK -> "True black for larger surfaces, best on OLED screens."
-                            },
-                            selected = style == darkStyle,
-                            onClick = { onDarkStyle(style) },
+                    SettingsPage.APPEARANCE -> {
+                        SectionHeader("Theme")
+                        ThemeMode.entries.forEach { mode ->
+                            ChoiceRow(
+                                label = mode.label,
+                                selected = mode == themeMode,
+                                onClick = { onThemeMode(mode) },
+                            )
+                        }
+                    }
+
+                    SettingsPage.DARK_STYLE -> {
+                        SectionHeader("When dark mode is active")
+                        DarkStyle.entries.forEach { style ->
+                            ChoiceRow(
+                                label = style.label,
+                                subtitle = when (style) {
+                                    DarkStyle.REGULAR -> "Dark grey surfaces and backgrounds."
+                                    DarkStyle.PURE_BLACK -> "True black for larger surfaces, best on OLED screens."
+                                },
+                                selected = style == darkStyle,
+                                onClick = { onDarkStyle(style) },
+                            )
+                        }
+                    }
+
+                    SettingsPage.VIEW_FONT -> {
+                        FontChoiceList(
+                            header = "Font for the View tab",
+                            systemFonts = systemFonts,
+                            selectedId = viewFontId,
+                            onSelect = onViewFontId,
                         )
                     }
-                }
 
-                SettingsPage.VIEW_FONT -> {
-                    SectionHeader("Font for the View tab")
-                    AppFont.entries.forEach { font ->
-                        ChoiceRow(
-                            label = font.label,
-                            selected = font == viewFont,
-                            onClick = { onViewFont(font) },
-                        )
-                    }
-                }
-
-                SettingsPage.EDIT_FONT -> {
-                    SectionHeader("Font for the Edit tab")
-                    AppFont.entries.forEach { font ->
-                        ChoiceRow(
-                            label = font.label,
-                            selected = font == editFont,
-                            onClick = { onEditFont(font) },
+                    SettingsPage.EDIT_FONT -> {
+                        FontChoiceList(
+                            header = "Font for the Edit tab",
+                            systemFonts = systemFonts,
+                            selectedId = editFontId,
+                            onSelect = onEditFontId,
                         )
                     }
                 }
@@ -177,6 +201,10 @@ fun SettingsScreen(
         }
     }
 }
+
+/** Root is depth 0; every submenu is depth 1 (drives slide direction). */
+private fun settingsDepth(page: SettingsPage): Int =
+    if (page == SettingsPage.ROOT) 0 else 1
 
 @Composable
 private fun SectionHeader(text: String) {
@@ -237,6 +265,92 @@ private fun ChoiceRow(
             if (subtitle != null) {
                 Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
             }
+        }
+        if (selected) {
+            Icon(
+                Icons.Filled.Check,
+                contentDescription = "Selected",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+}
+
+/** Sentinel id meaning "use the app's default (monospace)". */
+const val DEFAULT_FONT_ID = "__default__"
+
+private fun fontDisplayName(id: String?, fonts: List<SystemFont>): String {
+    if (id == null || id == DEFAULT_FONT_ID) return "Default (Monospace)"
+    return fonts.firstOrNull { it.id == id }?.displayName ?: "Default (Monospace)"
+}
+
+@Composable
+private fun FontChoiceList(
+    header: String,
+    systemFonts: List<SystemFont>,
+    selectedId: String?,
+    onSelect: (String) -> Unit,
+) {
+    SectionHeader(header)
+    // The app default first, previewed in monospace.
+    FontRow(
+        name = "Default (Monospace)",
+        previewFamily = FontFamily.Monospace,
+        selected = selectedId == null || selectedId == DEFAULT_FONT_ID,
+        onClick = { onSelect(DEFAULT_FONT_ID) },
+    )
+    if (systemFonts.isEmpty()) {
+        Text(
+            "No additional fonts found on this device.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        )
+    } else {
+        SectionHeader("Installed fonts")
+        systemFonts.forEach { font ->
+            FontRow(
+                name = font.displayName,
+                previewFamily = font.fontFamily,
+                selected = font.id == selectedId,
+                onClick = { onSelect(font.id) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun FontRow(
+    name: String,
+    previewFamily: FontFamily,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            // The name is shown in the font itself, so the list previews fonts.
+            Text(
+                name,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontFamily = previewFamily,
+                fontSize = 16.sp,
+            )
+            Text(
+                "AaBbCc 0123 — the quick brown fox",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontFamily = previewFamily,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
         if (selected) {
             Icon(

@@ -1,7 +1,6 @@
 package qdvc.markdownnotebook.android.app.ui.components
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Visibility
@@ -14,6 +13,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import qdvc.markdownnotebook.android.app.model.Tab
 
 @Composable
@@ -24,6 +24,7 @@ fun BottomBar(
 ) {
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
     ) {
         item(Tab.BROWSE, "Browse", Icons.Filled.FolderOpen, current, true, onSelect)
         item(Tab.VIEW, "View", Icons.Filled.Visibility, current, noteOpen, onSelect)

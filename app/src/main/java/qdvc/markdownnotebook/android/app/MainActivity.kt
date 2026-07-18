@@ -36,7 +36,6 @@ import qdvc.markdownnotebook.android.app.ui.edit.EditScreen
 import qdvc.markdownnotebook.android.app.ui.jump.JumpScreen
 import qdvc.markdownnotebook.android.app.ui.settings.SettingsScreen
 import qdvc.markdownnotebook.android.app.ui.theme.MarkdownNotesTheme
-import qdvc.markdownnotebook.android.app.ui.theme.toFontFamily
 import qdvc.markdownnotebook.android.app.ui.view.ViewScreen
 
 class MainActivity : ComponentActivity() {
@@ -115,8 +114,9 @@ private fun AppRoot(vm: AppViewModel, onPickFolder: () -> Unit) {
     val openNotes by vm.openNotes.collectAsState()
     val currentTab by vm.currentTab.collectAsState()
     val currentNoteUri by vm.currentNoteUri.collectAsState()
-    val viewFont by vm.viewFont.collectAsState()
-    val editFont by vm.editFont.collectAsState()
+    val viewFontId by vm.viewFontId.collectAsState()
+    val editFontId by vm.editFontId.collectAsState()
+    val systemFonts by vm.systemFonts.collectAsState()
 
     var showSettings by remember { mutableStateOf(false) }
 
@@ -129,12 +129,13 @@ private fun AppRoot(vm: AppViewModel, onPickFolder: () -> Unit) {
         SettingsScreen(
             themeMode = vm.themeMode.collectAsState().value,
             darkStyle = vm.darkStyle.collectAsState().value,
-            viewFont = viewFont,
-            editFont = editFont,
+            systemFonts = systemFonts,
+            viewFontId = viewFontId,
+            editFontId = editFontId,
             onThemeMode = vm::setThemeMode,
             onDarkStyle = vm::setDarkStyle,
-            onViewFont = vm::setViewFont,
-            onEditFont = vm::setEditFont,
+            onViewFontId = vm::setViewFontId,
+            onEditFontId = vm::setEditFontId,
             onClose = { showSettings = false },
         )
         return
@@ -178,12 +179,12 @@ private fun AppRoot(vm: AppViewModel, onPickFolder: () -> Unit) {
 
                 Tab.VIEW -> ViewScreen(
                     note = currentNote,
-                    fontFamily = viewFont.toFontFamily(),
+                    fontFamily = vm.fontFamilyFor(viewFontId),
                 )
 
                 Tab.EDIT -> EditScreen(
                     note = currentNote,
-                    fontFamily = editFont.toFontFamily(),
+                    fontFamily = vm.fontFamilyFor(editFontId),
                     onDraftChange = { draft ->
                         currentNoteUri?.let { vm.updateDraft(it, draft) }
                     },
