@@ -5,6 +5,8 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
 import qdvc.markdownnotebook.android.app.model.FolderEntry
+import qdvc.markdownnotebook.android.app.model.NoteFile
+import qdvc.markdownnotebook.android.app.model.SearchResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -66,6 +68,105 @@ class NoteRepository(private val context: Context) {
     /** The document id of the tree root itself (used to list a workspace root). */
     fun rootDocumentId(rootTreeUri: String): String =
         DocumentsContract.getTreeDocumentId(Uri.parse(rootTreeUri))
+
+    /**
+     * Recursively collects every markdown note in the workspace [rootTreeUri],
+     * each tagged with the folder path it lives under (relative to the root).
+     * Sorted by name.
+     */
+    suspend fun listAllNotes(rootTreeUri: String): List<NoteFile> =
+        withContext(Dispatchers.IO) {
+            val treeUri = Uri.parse(rootTreeUri)
+            val rootId = DocumentsContract.getTreeDocumentId(treeUri)
+            val result = mutableListOf<NoteFile>()
+            collectNotes(treeUri, rootId, "", result)
+            result.sortedBy { it.displayName.lowercase() }
+        }
+
+    private fun collectNotes(
+        treeUri: Uri,
+        folderDocId: String,
+        relativePath: String,
+        out: MutableList<NoteFile>,
+    ) {
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, folderDocId)
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+        )
+        // Gather this level first so the cursor is closed before we recurse.
+        val subFolders = mutableListOf<Pair<String, String>>() // docId to name
+        try {
+            context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val docId = cursor.getString(0)
+                    val name = cursor.getString(1) ?: continue
+                    val mime = cursor.getString(2)
+                    if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
+                        subFolders.add(docId to name)
+                    } else if (isMarkdown(name)) {
+                        val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+                        out.add(NoteFile(docUri.toString(), name, docId, relativePath))
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            return
+        }
+        for ((childId, childName) in subFolders) {
+            val childPath = if (relativePath.isEmpty()) childName else "$relativePath/$childName"
+            collectNotes(treeUri, childId, childPath, out)
+        }
+    }
+
+    /**
+     * Full-text search across every note in the workspace. Matches note titles
+     * (file names and markdown headings) and body text, case-insensitively, and
+     * returns a short snippet around the first match. [query] is trimmed; blank
+     * queries return nothing.
+     */
+    suspend fun search(rootTreeUri: String, query: String): List<SearchResult> =
+        withContext(Dispatchers.IO) {
+            val q = query.trim()
+            if (q.isEmpty()) return@withContext emptyList()
+            val needle = q.lowercase()
+            val notes = listAllNotes(rootTreeUri)
+            val results = mutableListOf<SearchResult>()
+            for (note in notes) {
+                val content = try {
+                    readNote(note.documentUri)
+                } catch (e: Exception) {
+                    ""
+                }
+                val nameMatch = note.displayName.lowercase().contains(needle)
+                val idx = content.lowercase().indexOf(needle)
+                if (idx >= 0) {
+                    results.add(SearchResult(note, snippetAround(content, idx, q.length)))
+                } else if (nameMatch) {
+                    results.add(SearchResult(note, firstMeaningfulLine(content)))
+                }
+            }
+            results
+        }
+
+    /** A ~120-char window around [index], with ellipses and collapsed whitespace. */
+    private fun snippetAround(text: String, index: Int, matchLen: Int): String {
+        val radius = 60
+        val start = (index - radius).coerceAtLeast(0)
+        val end = (index + matchLen + radius).coerceAtMost(text.length)
+        val core = text.substring(start, end).replace(Regex("\\s+"), " ").trim()
+        val prefix = if (start > 0) "…" else ""
+        val suffix = if (end < text.length) "…" else ""
+        return "$prefix$core$suffix"
+    }
+
+    private fun firstMeaningfulLine(text: String): String =
+        text.lineSequence()
+            .map { it.trim().trimStart('#', ' ') }
+            .firstOrNull { it.isNotEmpty() }
+            ?.take(120)
+            ?: ""
 
 
     suspend fun readNote(documentUri: String): String =

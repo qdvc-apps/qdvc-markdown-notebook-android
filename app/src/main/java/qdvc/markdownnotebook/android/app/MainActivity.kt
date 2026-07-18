@@ -189,9 +189,10 @@ private fun AppRoot(
         return
     }
 
-    // On the Browse tab, when a toolbar back button is showing (i.e. we're
-    // inside a folder), the system back button mirrors it instead of exiting.
-    val browseHasBack = currentTab == Tab.BROWSE && browse.stack.isNotEmpty()
+    // On the Browse tab, the system back button steps back through the browse
+    // hierarchy (folders → overview → workspace list) instead of exiting, as
+    // long as we're not already at the workspace list.
+    val browseHasBack = currentTab == Tab.BROWSE && browse.mode != BrowseMode.WORKSPACES
     BackHandler(enabled = browseHasBack) { vm.browseUp() }
 
     Scaffold(
@@ -199,7 +200,15 @@ private fun AppRoot(
             BottomBar(
                 current = currentTab,
                 noteOpen = noteOpen,
-                onSelect = vm::selectTab,
+                onSelect = { tab ->
+                    // Re-tapping Browse while already in it returns to the
+                    // workspace list.
+                    if (tab == Tab.BROWSE && currentTab == Tab.BROWSE) {
+                        vm.resetBrowseToWorkspaces()
+                    } else {
+                        vm.selectTab(tab)
+                    }
+                },
             )
         },
     ) { padding ->
@@ -218,10 +227,16 @@ private fun AppRoot(
                     onAddWorkspace = onPickFolder,
                     onRemoveWorkspace = vm::removeWorkspace,
                     onOpenWorkspace = vm::openWorkspace,
+                    onOpenFolders = vm::openFolders,
+                    onOpenAllNotes = vm::openAllNotes,
+                    onOpenSearch = vm::openSearch,
                     onOpenSubFolder = vm::openSubFolder,
                     onOpenNote = vm::openNote,
-                    onBrowseUp = vm::browseUp,
+                    onOpenNoteFile = vm::openNoteFile,
+                    onBrowseUp = { vm.browseUp() },
                     onCreateNote = vm::createNoteInCurrentFolder,
+                    onSearchQueryChange = vm::updateSearchQuery,
+                    onRunSearch = vm::runSearch,
                     onOpenSettings = { showSettings = true },
                 )
 

@@ -28,9 +28,14 @@ straight back to the original `.md` / `.markdown` files.
 
 ## The four tabs
 
-- **Browse** — start here. A home list of workspaces (add or remove folders).
-  Tap a workspace to slide into its contents; a toolbar button creates a new
-  note. Tapping a note opens it and jumps to View. The overflow menu holds
+- **Browse** — start here. A home list of workspaces (star icons; add or remove
+  folders). Tapping a workspace opens an overview with three entries: Browse
+  files (the folder structure), All notes (every markdown file in the workspace,
+  wherever it's filed), and Search (full-text search of note titles and
+  contents, on its own screen). The system back button steps back through this
+  hierarchy, and re-tapping the Browse tab jumps straight to the workspace list.
+  Inside the folder browser a toolbar button creates a new note. Tapping a note
+  opens it and jumps to View. The overflow menu on the workspace list holds
   Settings (Appearance; Dark Mode Style with a pure-black OLED option; and
   separate View Font and Edit Font pickers that list and preview the fonts
   actually installed on the device, plus a custom-font option with four file

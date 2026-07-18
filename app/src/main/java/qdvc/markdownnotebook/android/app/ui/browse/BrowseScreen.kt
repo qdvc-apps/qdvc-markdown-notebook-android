@@ -20,13 +20,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Article
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NoteAdd
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -48,11 +52,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import qdvc.markdownnotebook.android.app.BrowseMode
 import qdvc.markdownnotebook.android.app.BrowseState
 import qdvc.markdownnotebook.android.app.model.FolderEntry
+import qdvc.markdownnotebook.android.app.model.NoteFile
+import qdvc.markdownnotebook.android.app.model.SearchResult
 import qdvc.markdownnotebook.android.app.model.Workspace
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,18 +71,32 @@ fun BrowseScreen(
     onAddWorkspace: () -> Unit,
     onRemoveWorkspace: (String) -> Unit,
     onOpenWorkspace: (Workspace) -> Unit,
+    onOpenFolders: () -> Unit,
+    onOpenAllNotes: () -> Unit,
+    onOpenSearch: () -> Unit,
     onOpenSubFolder: (FolderEntry) -> Unit,
     onOpenNote: (FolderEntry) -> Unit,
+    onOpenNoteFile: (NoteFile) -> Unit,
     onBrowseUp: () -> Unit,
     onCreateNote: (String, (Boolean) -> Unit) -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onRunSearch: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
-    val inFolder = browse.stack.isNotEmpty()
     var menuOpen by remember { mutableStateOf(false) }
     var showNewNote by remember { mutableStateOf(false) }
     var workspaceToRemove by remember { mutableStateOf<Workspace?>(null) }
 
-    val title = if (inFolder) browse.stack.last().title else "Workspaces"
+    val inFolder = browse.mode == BrowseMode.FOLDERS
+    val showBack = browse.mode != BrowseMode.WORKSPACES
+
+    val title = when (browse.mode) {
+        BrowseMode.WORKSPACES -> "Workspaces"
+        BrowseMode.OVERVIEW -> browse.workspace?.name ?: "Workspace"
+        BrowseMode.FOLDERS -> browse.stack.lastOrNull()?.title ?: browse.workspace?.name ?: ""
+        BrowseMode.ALL_NOTES -> "All notes"
+        BrowseMode.SEARCH -> "Search"
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -82,28 +104,32 @@ fun BrowseScreen(
             TopAppBar(
                 title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
-                    if (inFolder) {
+                    if (showBack) {
                         IconButton(onClick = onBrowseUp) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                     }
                 },
                 actions = {
-                    if (inFolder) {
-                        IconButton(onClick = { showNewNote = true }) {
-                            Icon(Icons.Filled.NoteAdd, contentDescription = "New note")
+                    when (browse.mode) {
+                        BrowseMode.FOLDERS -> {
+                            IconButton(onClick = { showNewNote = true }) {
+                                Icon(Icons.Filled.NoteAdd, contentDescription = "New note")
+                            }
                         }
-                    } else {
-                        IconButton(onClick = { menuOpen = true }) {
-                            Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                        BrowseMode.WORKSPACES -> {
+                            IconButton(onClick = { menuOpen = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                            }
+                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text("Settings") },
+                                    leadingIcon = { Icon(Icons.Filled.Settings, null) },
+                                    onClick = { menuOpen = false; onOpenSettings() },
+                                )
+                            }
                         }
-                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Settings") },
-                                leadingIcon = { Icon(Icons.Filled.Settings, null) },
-                                onClick = { menuOpen = false; onOpenSettings() },
-                            )
-                        }
+                        else -> {}
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -115,11 +141,16 @@ fun BrowseScreen(
             )
         },
     ) { padding ->
-        // Slide animation between navigation levels: workspace home, a folder,
-        // and any nested subfolder. Going deeper slides in from the right;
-        // going back slides in from the left.
+        // Depth drives the slide direction: workspace list (0), overview (1),
+        // then folders/all-notes/search (2+). Folder depth grows with the stack.
+        val depth = when (browse.mode) {
+            BrowseMode.WORKSPACES -> 0
+            BrowseMode.OVERVIEW -> 1
+            BrowseMode.ALL_NOTES, BrowseMode.SEARCH -> 2
+            BrowseMode.FOLDERS -> 1 + browse.stack.size
+        }
         AnimatedContent(
-            targetState = browse.stack.size,
+            targetState = depth,
             transitionSpec = {
                 val deeper = targetState > initialState
                 if (deeper) {
@@ -131,20 +162,36 @@ fun BrowseScreen(
                 }
             },
             label = "browseTransition",
+            contentKey = { browse.mode },
             modifier = Modifier.fillMaxSize().padding(padding),
-        ) { depth ->
-            if (depth == 0) {
-                WorkspaceHome(
+        ) { _ ->
+            when (browse.mode) {
+                BrowseMode.WORKSPACES -> WorkspaceList(
                     workspaces = workspaces,
                     onAdd = onAddWorkspace,
                     onOpen = onOpenWorkspace,
                     onRequestRemove = { workspaceToRemove = it },
                 )
-            } else {
-                FolderView(
+                BrowseMode.OVERVIEW -> WorkspaceOverview(
+                    workspace = browse.workspace,
+                    onBrowseFiles = onOpenFolders,
+                    onAllNotes = onOpenAllNotes,
+                    onSearch = onOpenSearch,
+                )
+                BrowseMode.FOLDERS -> FolderView(
                     browse = browse,
                     onOpenSubFolder = onOpenSubFolder,
                     onOpenNote = onOpenNote,
+                )
+                BrowseMode.ALL_NOTES -> AllNotesView(
+                    browse = browse,
+                    onOpenNoteFile = onOpenNoteFile,
+                )
+                BrowseMode.SEARCH -> SearchView(
+                    browse = browse,
+                    onQueryChange = onSearchQueryChange,
+                    onRunSearch = onRunSearch,
+                    onOpenNoteFile = onOpenNoteFile,
                 )
             }
         }
@@ -153,9 +200,7 @@ fun BrowseScreen(
     if (showNewNote) {
         NewNoteDialog(
             onDismiss = { showNewNote = false },
-            onConfirm = { name ->
-                onCreateNote(name) { showNewNote = false }
-            },
+            onConfirm = { name -> onCreateNote(name) { showNewNote = false } },
         )
     }
 
@@ -178,7 +223,7 @@ fun BrowseScreen(
 }
 
 @Composable
-private fun WorkspaceHome(
+private fun WorkspaceList(
     workspaces: List<Workspace>,
     onAdd: () -> Unit,
     onOpen: (Workspace) -> Unit,
@@ -217,7 +262,8 @@ private fun WorkspaceHome(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Icon(Icons.Filled.Folder, null, tint = MaterialTheme.colorScheme.secondary)
+                        // Workspaces use a star; folders (inside a workspace) use folder icons.
+                        Icon(Icons.Filled.Star, null, tint = MaterialTheme.colorScheme.secondary)
                         Text(
                             ws.name,
                             Modifier.weight(1f),
@@ -239,6 +285,56 @@ private fun WorkspaceHome(
             }
         }
     }
+}
+
+@Composable
+private fun WorkspaceOverview(
+    workspace: Workspace?,
+    onBrowseFiles: () -> Unit,
+    onAllNotes: () -> Unit,
+    onSearch: () -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
+        // Show the workspace's underlying folder path in small text.
+        Text(
+            text = workspace?.let { prettyPath(it.treeUri) } ?: "",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
+        OverviewRow(Icons.Filled.FolderOpen, "Browse files", "Explore the folder structure", onBrowseFiles)
+        OverviewRow(Icons.Filled.Article, "All notes", "Every note, wherever it's filed", onAllNotes)
+        OverviewRow(Icons.Filled.Search, "Search", "Full-text search of titles and contents", onSearch)
+    }
+}
+
+@Composable
+private fun OverviewRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+        Column(Modifier.weight(1f)) {
+            Text(title, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
+            Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 }
 
 @Composable
@@ -270,8 +366,7 @@ private fun FolderView(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Icon(
-                    if (entry.isDirectory) Icons.Filled.Folder
-                    else Icons.Filled.Description,
+                    if (entry.isDirectory) Icons.Filled.Folder else Icons.Filled.Description,
                     contentDescription = null,
                     tint = if (entry.isDirectory) MaterialTheme.colorScheme.secondary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -287,6 +382,170 @@ private fun FolderView(
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
         }
     }
+}
+
+@Composable
+private fun AllNotesView(
+    browse: BrowseState,
+    onOpenNoteFile: (NoteFile) -> Unit,
+) {
+    if (browse.allNotesLoading) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Scanning notes…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp)
+        }
+        return
+    }
+    if (browse.allNotes.isEmpty()) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                "No notes in this workspace yet.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 15.sp,
+            )
+        }
+        return
+    }
+    LazyColumn(Modifier.fillMaxSize()) {
+        items(browse.allNotes, key = { it.documentUri }) { note ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenNoteFile(note) }
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Icon(
+                    Icons.Filled.Description,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        note.displayName,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 16.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (note.relativePath.isNotEmpty()) {
+                        Text(
+                            note.relativePath,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        }
+    }
+}
+
+@Composable
+private fun SearchView(
+    browse: BrowseState,
+    onQueryChange: (String) -> Unit,
+    onRunSearch: () -> Unit,
+    onOpenNoteFile: (NoteFile) -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
+        OutlinedTextField(
+            value = browse.searchQuery,
+            onValueChange = onQueryChange,
+            singleLine = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            label = { Text("Search titles and contents") },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            trailingIcon = {
+                TextButton(onClick = onRunSearch, enabled = browse.searchQuery.isNotBlank()) {
+                    Text("Search")
+                }
+            },
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
+        when {
+            browse.searching -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Searching…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp)
+            }
+            browse.searchResults.isEmpty() && browse.searchQuery.isNotBlank() ->
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        "No matches for \"${browse.searchQuery.trim()}\".",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 15.sp,
+                    )
+                }
+            browse.searchResults.isEmpty() ->
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        "Type a query and tap Search.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 15.sp,
+                    )
+                }
+            else -> LazyColumn(Modifier.fillMaxSize()) {
+                items(browse.searchResults, key = { it.note.documentUri }) { result ->
+                    SearchResultRow(result, onOpenNoteFile)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchResultRow(result: SearchResult, onOpen: (NoteFile) -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onOpen(result.note) }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(
+            Icons.Filled.Description,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp),
+        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                result.note.displayName,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 16.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (result.note.relativePath.isNotEmpty()) {
+                Text(
+                    result.note.relativePath,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (result.snippet.isNotEmpty()) {
+                Text(
+                    result.snippet,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 }
 
 @Composable
@@ -315,4 +574,18 @@ private fun NewNoteDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
+}
+
+/**
+ * Renders a SAF tree URI as a readable path, e.g.
+ * "content://…/tree/primary:Notes/Work" -> "/Notes/Work".
+ */
+private fun prettyPath(treeUri: String): String {
+    return try {
+        val decoded = android.net.Uri.decode(treeUri)
+        val afterColon = decoded.substringAfterLast(':', "")
+        if (afterColon.isNotEmpty()) "/$afterColon" else decoded
+    } catch (e: Exception) {
+        treeUri
+    }
 }

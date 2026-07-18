@@ -18,6 +18,26 @@ data class FolderEntry(
 )
 
 /**
+ * A markdown note found anywhere in a workspace, with the folder path it lives
+ * under (relative to the workspace root, e.g. "Projects/2026").
+ */
+data class NoteFile(
+    val documentUri: String,
+    val displayName: String,
+    val docId: String,
+    val relativePath: String,
+)
+
+/**
+ * A full-text search hit: the matched note plus a short snippet of surrounding
+ * text showing the first match.
+ */
+data class SearchResult(
+    val note: NoteFile,
+    val snippet: String,
+)
+
+/**
  * A note that is currently open (listed in the Jump tab). Content is held in
  * memory so edits and unsaved state survive tab switches.
  */

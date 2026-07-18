@@ -10,8 +10,10 @@ import qdvc.markdownnotebook.android.app.model.CustomFontSet
 import qdvc.markdownnotebook.android.app.model.DarkStyle
 import qdvc.markdownnotebook.android.app.model.FolderEntry
 import qdvc.markdownnotebook.android.app.model.FontVariant
+import qdvc.markdownnotebook.android.app.model.NoteFile
 import qdvc.markdownnotebook.android.app.model.OpenNote
 import qdvc.markdownnotebook.android.app.model.PersistedOpenNote
+import qdvc.markdownnotebook.android.app.model.SearchResult
 import qdvc.markdownnotebook.android.app.model.Tab
 import qdvc.markdownnotebook.android.app.model.ThemeMode
 import qdvc.markdownnotebook.android.app.model.Workspace
@@ -39,11 +41,24 @@ data class BrowseFolder(
     val title: String,
 )
 
+/** Which screen the Browse tab is showing. */
+enum class BrowseMode { WORKSPACES, OVERVIEW, FOLDERS, ALL_NOTES, SEARCH }
+
 data class BrowseState(
-    // null = showing the workspace home list; non-empty = inside folders.
+    val mode: BrowseMode = BrowseMode.WORKSPACES,
+    // The workspace being explored (null only in WORKSPACES mode).
+    val workspace: Workspace? = null,
+    // Folder navigation stack, used in FOLDERS mode.
     val stack: List<BrowseFolder> = emptyList(),
     val entries: List<FolderEntry> = emptyList(),
     val loading: Boolean = false,
+    // All-notes list (ALL_NOTES mode).
+    val allNotes: List<NoteFile> = emptyList(),
+    val allNotesLoading: Boolean = false,
+    // Search (SEARCH mode).
+    val searchQuery: String = "",
+    val searchResults: List<SearchResult> = emptyList(),
+    val searching: Boolean = false,
 )
 
 class AppViewModel(app: Application) : AndroidViewModel(app) {
@@ -230,13 +245,56 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // ---- Browsing ----
+
+    /** Tapping a workspace shows its overview (Browse files / All notes / Search). */
     fun openWorkspace(workspace: Workspace) {
-        val rootDocId = noteRepo.rootDocumentId(workspace.treeUri)
-        _browse.value = BrowseState(
-            stack = listOf(BrowseFolder(workspace.treeUri, rootDocId, workspace.name)),
+        _browse.value = BrowseState(mode = BrowseMode.OVERVIEW, workspace = workspace)
+    }
+
+    /** From the overview: open the folder browser at the workspace root. */
+    fun openFolders() {
+        val ws = _browse.value.workspace ?: return
+        val rootDocId = noteRepo.rootDocumentId(ws.treeUri)
+        _browse.value = _browse.value.copy(
+            mode = BrowseMode.FOLDERS,
+            stack = listOf(BrowseFolder(ws.treeUri, rootDocId, ws.name)),
             loading = true,
         )
         refreshCurrentFolder()
+    }
+
+    /** From the overview: show every note in the workspace. */
+    fun openAllNotes() {
+        val ws = _browse.value.workspace ?: return
+        _browse.value = _browse.value.copy(mode = BrowseMode.ALL_NOTES, allNotesLoading = true)
+        viewModelScope.launch {
+            val notes = noteRepo.listAllNotes(ws.treeUri)
+            _browse.value = _browse.value.copy(allNotes = notes, allNotesLoading = false)
+        }
+    }
+
+    /** From the overview: open the search screen. */
+    fun openSearch() {
+        _browse.value = _browse.value.copy(
+            mode = BrowseMode.SEARCH,
+            searchQuery = "",
+            searchResults = emptyList(),
+            searching = false,
+        )
+    }
+
+    fun updateSearchQuery(query: String) {
+        _browse.value = _browse.value.copy(searchQuery = query)
+    }
+
+    fun runSearch() {
+        val ws = _browse.value.workspace ?: return
+        val query = _browse.value.searchQuery
+        _browse.value = _browse.value.copy(searching = true)
+        viewModelScope.launch {
+            val results = noteRepo.search(ws.treeUri, query)
+            _browse.value = _browse.value.copy(searchResults = results, searching = false)
+        }
     }
 
     fun openSubFolder(entry: FolderEntry) {
@@ -249,16 +307,41 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         refreshCurrentFolder()
     }
 
-    fun browseUp() {
-        val stack = _browse.value.stack
-        if (stack.isEmpty()) return
-        val newStack = stack.dropLast(1)
-        if (newStack.isEmpty()) {
-            _browse.value = BrowseState() // back to workspace home
-        } else {
-            _browse.value = _browse.value.copy(stack = newStack, loading = true)
-            refreshCurrentFolder()
+    /**
+     * Handles a "back" step within the Browse tab. Returns true if it consumed
+     * the back action, false if the tab is already at the workspace list.
+     */
+    fun browseUp(): Boolean {
+        val state = _browse.value
+        return when (state.mode) {
+            BrowseMode.WORKSPACES -> false
+            BrowseMode.OVERVIEW -> {
+                _browse.value = BrowseState() // back to workspace list
+                true
+            }
+            BrowseMode.ALL_NOTES, BrowseMode.SEARCH -> {
+                _browse.value = _browse.value.copy(mode = BrowseMode.OVERVIEW)
+                true
+            }
+            BrowseMode.FOLDERS -> {
+                val newStack = state.stack.dropLast(1)
+                if (newStack.isEmpty()) {
+                    // Leaving the folder browser returns to the overview.
+                    _browse.value = _browse.value.copy(
+                        mode = BrowseMode.OVERVIEW, stack = emptyList(), entries = emptyList()
+                    )
+                } else {
+                    _browse.value = _browse.value.copy(stack = newStack, loading = true)
+                    refreshCurrentFolder()
+                }
+                true
+            }
         }
+    }
+
+    /** Tapping the Browse tab (when already in it) jumps to the workspace list. */
+    fun resetBrowseToWorkspaces() {
+        _browse.value = BrowseState()
     }
 
     fun refreshCurrentFolder() {
@@ -270,7 +353,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun currentWorkspaceName(): String =
-        _browse.value.stack.firstOrNull()?.title ?: ""
+        _browse.value.workspace?.name ?: _browse.value.stack.firstOrNull()?.title ?: ""
 
     fun createNoteInCurrentFolder(name: String, onDone: (Boolean) -> Unit) {
         val folder = _browse.value.stack.lastOrNull() ?: return onDone(false)
@@ -282,6 +365,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 onDone(true)
             } else onDone(false)
         }
+    }
+
+    /** Opens a note found via All notes / Search (already has its docId). */
+    fun openNoteFile(note: NoteFile) {
+        openNote(FolderEntry(note.documentUri, note.displayName, false, note.docId))
     }
 
     // ---- Opening notes ----
