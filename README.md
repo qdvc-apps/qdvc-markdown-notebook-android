@@ -47,7 +47,10 @@ straight back to the original `.md` / `.markdown` files.
   so they can't go missing between sessions. The status bar matches the top app
   bars and the navigation bar matches the bottom navigation bar.
 - **View** — the open note, read-only but selectable (long-press to select and
-  copy). Markdown is shown through syntax highlighting, never by resizing text.
+  copy). Markdown is shown through syntax highlighting, never by resizing text;
+  the highlight colours follow the active theme (including the Everforest
+  palettes). Wrapped lines of a list item hang-indent to align under the item's
+  text, so multi-line and nested bullets stay visually aligned.
   The font is whatever you pick under Settings → Fonts → View Font.
 - **Edit** — the same, but writable, with its own font choice (Settings → Fonts
   → Edit Font). A Save button appears only when there are unsaved changes.

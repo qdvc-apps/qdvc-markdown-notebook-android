@@ -2,13 +2,17 @@ package qdvc.markdownnotebook.android.app.util
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.sp
 
 /**
  * Colours the tokens that make up markdown syntax. Font size never changes:
@@ -29,23 +33,42 @@ data class SyntaxColors(
 
 object MarkdownHighlighter {
 
+    // Approximate width of one character as a fraction of the font size. Exact
+    // for monospace fonts (the default); a reasonable estimate for others. Used
+    // only to align wrapped list lines under their content in render mode.
+    private const val CHAR_ADVANCE_EM = 0.6f
+
     /**
      * @param render when true (the View tab), inline emphasis is *rendered*:
      * bold text is bold, italics slant, strikethrough is struck through, and the
      * surrounding markers are dimmed. When false (the Edit tab), markers keep
      * full colour so the raw source stays clear for editing.
+     * @param hangingIndentFontSizeSp when non-null (render mode), wrapped lines
+     * of a list item are indented to align under the item's text, using this
+     * font size to size the indent. Null disables hanging indents (Edit tab),
+     * so raw source stays character-accurate for editing.
      */
     fun highlight(
         text: String,
         colors: SyntaxColors,
         fontFamily: FontFamily,
         render: Boolean = false,
+        hangingIndentFontSizeSp: Float? = null,
     ): AnnotatedString = buildAnnotatedString {
         withStyle(SpanStyle(fontFamily = fontFamily)) {
             val lines = text.split("\n")
-            lines.forEachIndexed { index, line ->
-                appendLine(line, colors, render)
-                if (index != lines.lastIndex) append("\n")
+            if (hangingIndentFontSizeSp != null) {
+                // Each source line becomes its own paragraph so continuation
+                // (wrapped) lines can be indented independently. Paragraph
+                // boundaries provide the line breaks, so we don't append "\n".
+                lines.forEach { line ->
+                    appendLine(line, colors, render, hangingIndentFontSizeSp)
+                }
+            } else {
+                lines.forEachIndexed { index, line ->
+                    appendLine(line, colors, render, null)
+                    if (index != lines.lastIndex) append("\n")
+                }
             }
         }
     }
@@ -54,9 +77,42 @@ object MarkdownHighlighter {
         line: String,
         c: SyntaxColors,
         render: Boolean,
+        hangingFontSizeSp: Float?,
     ) {
         val trimmed = line.trimStart()
         val indent = line.length - trimmed.length
+
+        // Work out how far wrapped continuation lines should be indented so they
+        // align under the content of a list item (a "hanging indent").
+        val ulMatch = Regex("^([-*+])\\s+").find(trimmed)
+        val olMatch = Regex("^(\\d+[.)])\\s+").find(trimmed)
+        val markerWidth = ulMatch?.value?.length ?: olMatch?.value?.length ?: 0
+        val hangingChars = indent + markerWidth
+
+        // In hanging mode every source line is its own paragraph (so wrapped
+        // lines can be indented). List items get a rest-line indent that aligns
+        // continuation lines under the item text; other lines get zero.
+        if (hangingFontSizeSp != null) {
+            val restIndent: TextUnit =
+                if (hangingChars > 0) (hangingFontSizeSp * CHAR_ADVANCE_EM * hangingChars).sp
+                else 0.sp
+            pushStyle(ParagraphStyle(textIndent = TextIndent(firstLine = 0.sp, restLine = restIndent)))
+        }
+
+        appendLineBody(line, trimmed, indent, c, render, ulMatch, olMatch)
+
+        if (hangingFontSizeSp != null) pop()
+    }
+
+    private fun AnnotatedString.Builder.appendLineBody(
+        line: String,
+        trimmed: String,
+        indent: Int,
+        c: SyntaxColors,
+        render: Boolean,
+        ulMatch: MatchResult?,
+        olMatch: MatchResult?,
+    ) {
         if (indent > 0) append(line.substring(0, indent))
 
         // ATX headings: # .. ######
@@ -80,8 +136,6 @@ object MarkdownHighlighter {
         }
 
         // Unordered / ordered list markers
-        val ulMatch = Regex("^([-*+])\\s+").find(trimmed)
-        val olMatch = Regex("^(\\d+[.)])\\s+").find(trimmed)
         if (ulMatch != null) {
             withStyle(SpanStyle(color = c.listMarker, fontWeight = FontWeight.Bold)) {
                 append(ulMatch.value)
