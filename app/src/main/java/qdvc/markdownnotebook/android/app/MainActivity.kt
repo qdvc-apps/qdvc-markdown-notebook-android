@@ -86,6 +86,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             val themeMode by vm.themeMode.collectAsState()
+            val lightStyle by vm.lightStyle.collectAsState()
             val darkStyle by vm.darkStyle.collectAsState()
 
             // Resolve whether the app is currently showing a dark theme so the
@@ -96,7 +97,7 @@ class MainActivity : ComponentActivity() {
                 ThemeMode.DARK -> true
             }
 
-            MarkdownNotesTheme(themeMode = themeMode, darkStyle = darkStyle) {
+            MarkdownNotesTheme(themeMode = themeMode, lightStyle = lightStyle, darkStyle = darkStyle) {
                 SystemBars(darkTheme = darkTheme)
                 AppRoot(
                     vm = vm,
@@ -167,6 +168,7 @@ private fun AppRoot(
         BackHandler(enabled = true) { showSettings = false }
         SettingsScreen(
             themeMode = vm.themeMode.collectAsState().value,
+            lightStyle = vm.lightStyle.collectAsState().value,
             darkStyle = vm.darkStyle.collectAsState().value,
             systemFonts = systemFonts,
             viewFontId = viewFontId,
@@ -176,6 +178,7 @@ private fun AppRoot(
             viewCustomFont = viewCustomFont,
             editCustomFont = editCustomFont,
             onThemeMode = vm::setThemeMode,
+            onLightStyle = vm::setLightStyle,
             onDarkStyle = vm::setDarkStyle,
             onViewFontId = vm::setViewFontId,
             onEditFontId = vm::setEditFontId,

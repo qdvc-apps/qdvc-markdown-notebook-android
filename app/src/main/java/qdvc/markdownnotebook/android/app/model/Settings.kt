@@ -11,9 +11,20 @@ enum class ThemeMode(val label: String) {
     }
 }
 
+enum class LightStyle(val label: String) {
+    REGULAR("Regular Light Mode"),
+    EVERFOREST("Everforest Light");
+
+    companion object {
+        fun fromName(name: String?): LightStyle =
+            entries.firstOrNull { it.name == name } ?: REGULAR
+    }
+}
+
 enum class DarkStyle(val label: String) {
     REGULAR("Regular Dark Mode"),
-    PURE_BLACK("Pure Black Mode");
+    PURE_BLACK("Pure Black Mode"),
+    EVERFOREST("Everforest Dark");
 
     companion object {
         fun fromName(name: String?): DarkStyle =

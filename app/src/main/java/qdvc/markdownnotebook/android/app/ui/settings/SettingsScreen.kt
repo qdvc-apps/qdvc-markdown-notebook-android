@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.FontDownload
@@ -52,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import qdvc.markdownnotebook.android.app.model.CustomFontSet
 import qdvc.markdownnotebook.android.app.model.DarkStyle
 import qdvc.markdownnotebook.android.app.model.FontVariant
+import qdvc.markdownnotebook.android.app.model.LightStyle
 import qdvc.markdownnotebook.android.app.model.ThemeMode
 import qdvc.markdownnotebook.android.app.util.CustomFont
 import qdvc.markdownnotebook.android.app.util.SystemFont
@@ -63,13 +65,14 @@ const val DEFAULT_FONT_ID = "__default__"
 const val CUSTOM_FONT_ID = "__custom__"
 
 private enum class SettingsPage {
-    ROOT, APPEARANCE, DARK_STYLE, VIEW_FONT, EDIT_FONT, VIEW_CUSTOM, EDIT_CUSTOM
+    ROOT, APPEARANCE, LIGHT_STYLE, DARK_STYLE, VIEW_FONT, EDIT_FONT, VIEW_CUSTOM, EDIT_CUSTOM
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     themeMode: ThemeMode,
+    lightStyle: LightStyle,
     darkStyle: DarkStyle,
     systemFonts: List<SystemFont>,
     viewFontId: String?,
@@ -79,6 +82,7 @@ fun SettingsScreen(
     viewCustomFont: CustomFont?,
     editCustomFont: CustomFont?,
     onThemeMode: (ThemeMode) -> Unit,
+    onLightStyle: (LightStyle) -> Unit,
     onDarkStyle: (DarkStyle) -> Unit,
     onViewFontId: (String) -> Unit,
     onEditFontId: (String) -> Unit,
@@ -92,6 +96,7 @@ fun SettingsScreen(
     val title = when (page) {
         SettingsPage.ROOT -> "Settings"
         SettingsPage.APPEARANCE -> "Appearance"
+        SettingsPage.LIGHT_STYLE -> "Light Mode Style"
         SettingsPage.DARK_STYLE -> "Dark Mode Style"
         SettingsPage.VIEW_FONT -> "View Font"
         SettingsPage.EDIT_FONT -> "Edit Font"
@@ -109,6 +114,7 @@ fun SettingsScreen(
                         page = when (page) {
                             SettingsPage.ROOT -> { onClose(); SettingsPage.ROOT }
                             SettingsPage.APPEARANCE -> SettingsPage.ROOT
+                            SettingsPage.LIGHT_STYLE -> SettingsPage.ROOT
                             SettingsPage.DARK_STYLE -> SettingsPage.ROOT
                             SettingsPage.VIEW_FONT -> SettingsPage.ROOT
                             SettingsPage.EDIT_FONT -> SettingsPage.ROOT
@@ -160,6 +166,12 @@ fun SettingsScreen(
                             onClick = { page = SettingsPage.APPEARANCE },
                         )
                         NavRow(
+                            icon = { Icon(Icons.Filled.LightMode, null, tint = MaterialTheme.colorScheme.primary) },
+                            title = "Light Mode Style",
+                            subtitle = lightStyle.label,
+                            onClick = { page = SettingsPage.LIGHT_STYLE },
+                        )
+                        NavRow(
                             icon = { Icon(Icons.Filled.Contrast, null, tint = MaterialTheme.colorScheme.primary) },
                             title = "Dark Mode Style",
                             subtitle = darkStyle.label,
@@ -191,6 +203,21 @@ fun SettingsScreen(
                         }
                     }
 
+                    SettingsPage.LIGHT_STYLE -> {
+                        SectionHeader("When light mode is active")
+                        LightStyle.entries.forEach { style ->
+                            ChoiceRow(
+                                label = style.label,
+                                subtitle = when (style) {
+                                    LightStyle.REGULAR -> "Warm paper tones with a sage accent."
+                                    LightStyle.EVERFOREST -> "Everforest light palette (medium contrast)."
+                                },
+                                selected = style == lightStyle,
+                                onClick = { onLightStyle(style) },
+                            )
+                        }
+                    }
+
                     SettingsPage.DARK_STYLE -> {
                         SectionHeader("When dark mode is active")
                         DarkStyle.entries.forEach { style ->
@@ -199,6 +226,7 @@ fun SettingsScreen(
                                 subtitle = when (style) {
                                     DarkStyle.REGULAR -> "Dark grey surfaces and backgrounds."
                                     DarkStyle.PURE_BLACK -> "True black for larger surfaces, best on OLED screens."
+                                    DarkStyle.EVERFOREST -> "Everforest dark palette (medium contrast)."
                                 },
                                 selected = style == darkStyle,
                                 onClick = { onDarkStyle(style) },

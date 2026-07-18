@@ -10,6 +10,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import qdvc.markdownnotebook.android.app.model.CustomFontSet
 import qdvc.markdownnotebook.android.app.model.DarkStyle
 import qdvc.markdownnotebook.android.app.model.FontVariant
+import qdvc.markdownnotebook.android.app.model.LightStyle
 import qdvc.markdownnotebook.android.app.model.PersistedOpenNote
 import qdvc.markdownnotebook.android.app.model.ThemeMode
 import qdvc.markdownnotebook.android.app.model.Workspace
@@ -28,6 +29,7 @@ class SettingsRepository(private val context: Context) {
 
     private object Keys {
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val LIGHT_STYLE = stringPreferencesKey("light_style")
         val DARK_STYLE = stringPreferencesKey("dark_style")
         val VIEW_FONT = stringPreferencesKey("view_font")
         val EDIT_FONT = stringPreferencesKey("edit_font")
@@ -50,6 +52,10 @@ class SettingsRepository(private val context: Context) {
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data.map {
         ThemeMode.fromName(it[Keys.THEME_MODE])
+    }
+
+    val lightStyle: Flow<LightStyle> = context.dataStore.data.map {
+        LightStyle.fromName(it[Keys.LIGHT_STYLE])
     }
 
     val darkStyle: Flow<DarkStyle> = context.dataStore.data.map {
@@ -91,6 +97,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { it[Keys.THEME_MODE] = mode.name }
+    }
+
+    suspend fun setLightStyle(style: LightStyle) {
+        context.dataStore.edit { it[Keys.LIGHT_STYLE] = style.name }
     }
 
     suspend fun setDarkStyle(style: DarkStyle) {

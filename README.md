@@ -36,7 +36,9 @@ straight back to the original `.md` / `.markdown` files.
   hierarchy, and re-tapping the Browse tab jumps straight to the workspace list.
   Inside the folder browser a toolbar button creates a new note. Tapping a note
   opens it and jumps to View. The overflow menu on the workspace list holds
-  Settings (Appearance; Dark Mode Style with a pure-black OLED option; and
+  Settings (Appearance; Light Mode Style and Dark Mode Style — each offering a
+  Regular option plus an Everforest palette, and Dark also offering pure-black
+  OLED; and
   separate View Font and Edit Font pickers that list and preview the fonts
   actually installed on the device, plus a custom-font option with four file
   slots (regular, italic, bold, bold-italic) so syntax highlighting uses the
