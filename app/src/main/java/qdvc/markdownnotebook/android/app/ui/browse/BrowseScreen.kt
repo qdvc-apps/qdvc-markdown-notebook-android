@@ -58,7 +58,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -397,12 +402,24 @@ private fun IndexStatusView(
             Text(if (status.state == IndexState.BUILDING) "Regenerating…" else "Regenerate now")
         }
 
-        Text(
-            "Regenerating rebuilds the index from scratch by reading every note once. " +
-                "This only affects the app's private search index — your notes are never modified.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 12.sp,
-        )
+        if (status.state == IndexState.BUILDING) {
+            // A fast-changing line so the user can see progress happening.
+            Text(
+                text = status.currentFile.ifEmpty { "Scanning…" },
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        } else {
+            Text(
+                "Regenerating rebuilds the index from scratch by reading every note once. " +
+                    "This only affects the app's private search index — your notes are never modified.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+            )
+        }
     }
 }
 
@@ -564,29 +581,31 @@ private fun SearchView(
         )
         HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
-        when {
-            browse.searching -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Searching…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp)
-            }
-            browse.searchResults.isEmpty() && browse.searchQuery.isNotBlank() ->
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "No matches for \"${browse.searchQuery.trim()}\".",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 15.sp,
-                    )
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when {
+                browse.searching -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Searching…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 15.sp)
                 }
-            browse.searchResults.isEmpty() ->
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "Type a query and tap Search.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 15.sp,
-                    )
-                }
-            else -> LazyColumn(Modifier.fillMaxSize()) {
-                items(browse.searchResults, key = { it.note.documentUri }) { result ->
-                    SearchResultRow(result, onOpenNoteFile)
+                browse.searchResults.isEmpty() && browse.searchQuery.isNotBlank() ->
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "No matches for \"${browse.searchQuery.trim()}\".",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 15.sp,
+                        )
+                    }
+                browse.searchResults.isEmpty() ->
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            "Type a query and tap Search.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 15.sp,
+                        )
+                    }
+                else -> LazyColumn(Modifier.fillMaxSize()) {
+                    items(browse.searchResults, key = { it.note.documentUri }) { result ->
+                        SearchResultRow(result, browse.searchQuery, onOpenNoteFile)
+                    }
                 }
             }
         }
@@ -594,7 +613,7 @@ private fun SearchView(
 }
 
 @Composable
-private fun SearchResultRow(result: SearchResult, onOpen: (NoteFile) -> Unit) {
+private fun SearchResultRow(result: SearchResult, query: String, onOpen: (NoteFile) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -629,7 +648,7 @@ private fun SearchResultRow(result: SearchResult, onOpen: (NoteFile) -> Unit) {
             }
             if (result.snippet.isNotEmpty()) {
                 Text(
-                    result.snippet,
+                    highlightQuery(result.snippet, query),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                     maxLines = 2,
@@ -640,6 +659,45 @@ private fun SearchResultRow(result: SearchResult, onOpen: (NoteFile) -> Unit) {
         }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+}
+
+/**
+ * Builds a snippet string with every occurrence of any query term shown in
+ * bold. Matching is case-insensitive and per whitespace-separated term, so a
+ * multi-word query bolds each word wherever it appears in the excerpt.
+ */
+private fun highlightQuery(snippet: String, query: String): AnnotatedString {
+    val terms = query.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+    if (terms.isEmpty()) return AnnotatedString(snippet)
+
+    // Collect all match ranges across all terms, then merge overlaps.
+    val lower = snippet.lowercase()
+    val ranges = mutableListOf<IntRange>()
+    for (term in terms) {
+        val t = term.lowercase()
+        var from = 0
+        while (true) {
+            val idx = lower.indexOf(t, from)
+            if (idx < 0) break
+            ranges.add(idx until (idx + t.length))
+            from = idx + t.length
+        }
+    }
+    if (ranges.isEmpty()) return AnnotatedString(snippet)
+    ranges.sortBy { it.first }
+
+    return buildAnnotatedString {
+        var cursor = 0
+        for (r in ranges) {
+            if (r.first < cursor) continue // overlaps a range we already bolded
+            if (r.first > cursor) append(snippet.substring(cursor, r.first))
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+                append(snippet.substring(r.first, r.last + 1))
+            }
+            cursor = r.last + 1
+        }
+        if (cursor < snippet.length) append(snippet.substring(cursor))
+    }
 }
 
 @Composable

@@ -15,10 +15,12 @@ enum class IndexState {
 /**
  * A snapshot of a workspace's index for display: its [state], how many notes
  * are indexed, and when it last finished regenerating (epoch millis, or 0 if
- * never).
+ * never). While [state] is BUILDING, [currentFile] names the note being scanned
+ * (empty when not building or between files).
  */
 data class IndexStatus(
     val state: IndexState = IndexState.NOT_BUILT,
     val noteCount: Int = 0,
     val lastRegenerated: Long = 0L,
+    val currentFile: String = "",
 )

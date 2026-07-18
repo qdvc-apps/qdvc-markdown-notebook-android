@@ -129,27 +129,40 @@ class IndexRepository(
                 val known = dao.stamps(workspaceUri).associate { it.docId to it.lastModified }
                 val seen = HashSet<String>(scanned.size)
 
+                var processed = 0
                 for (note in scanned) {
                     seen.add(note.docId)
-                    val prev = known[note.docId]
-                    if (prev != null && prev == note.lastModified) continue // unchanged
-                    val body = try {
-                        noteRepo.readNote(note.documentUri)
-                    } catch (e: Exception) {
-                        ""
-                    }
-                    dao.upsert(
-                        IndexedNoteEntity(
-                            workspaceUri = workspaceUri,
-                            docId = note.docId,
-                            documentUri = note.documentUri,
-                            displayName = note.displayName,
-                            relativePath = note.relativePath,
-                            lastModified = note.lastModified,
-                            size = note.size,
-                            content = body,
-                        )
+                    // Surface which file we're on and how many we've covered, so
+                    // the Index Status screen can show live progress.
+                    flow.value = flow.value.copy(
+                        state = IndexState.BUILDING,
+                        noteCount = processed,
+                        currentFile = note.relativePath
+                            .takeIf { it.isNotEmpty() }
+                            ?.let { "$it/${note.displayName}" }
+                            ?: note.displayName,
                     )
+                    val prev = known[note.docId]
+                    if (prev == null || prev != note.lastModified) {
+                        val body = try {
+                            noteRepo.readNote(note.documentUri)
+                        } catch (e: Exception) {
+                            ""
+                        }
+                        dao.upsert(
+                            IndexedNoteEntity(
+                                workspaceUri = workspaceUri,
+                                docId = note.docId,
+                                documentUri = note.documentUri,
+                                displayName = note.displayName,
+                                relativePath = note.relativePath,
+                                lastModified = note.lastModified,
+                                size = note.size,
+                                content = body,
+                            )
+                        )
+                    }
+                    processed++
                 }
 
                 // Prune notes that no longer exist on disk.
@@ -160,7 +173,7 @@ class IndexRepository(
                 val now = System.currentTimeMillis()
                 val count = dao.count(workspaceUri)
                 dao.putMeta(IndexMetaEntity(workspaceUri, now, count))
-                flow.value = IndexStatus(IndexState.READY, count, now)
+                flow.value = IndexStatus(IndexState.READY, count, now, "")
             } catch (e: Exception) {
                 // Leave whatever we had; reflect a best-effort status.
                 val count = dao.count(workspaceUri)
@@ -169,6 +182,7 @@ class IndexRepository(
                     state = if (count > 0) IndexState.READY else IndexState.NOT_BUILT,
                     noteCount = count,
                     lastRegenerated = meta?.lastRegenerated ?: 0L,
+                    currentFile = "",
                 )
             }
         }

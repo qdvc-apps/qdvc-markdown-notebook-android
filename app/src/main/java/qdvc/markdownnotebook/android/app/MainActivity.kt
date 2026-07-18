@@ -168,8 +168,6 @@ private fun AppRoot(
     val noteOpen = currentNoteUri != null
 
     if (showSettings) {
-        // System back closes Settings and returns to the app.
-        BackHandler(enabled = true) { showSettings = false }
         SettingsScreen(
             themeMode = vm.themeMode.collectAsState().value,
             lightThemes = vm.lightThemes,

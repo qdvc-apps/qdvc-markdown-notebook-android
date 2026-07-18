@@ -1,5 +1,6 @@
 package qdvc.markdownnotebook.android.app.ui.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.snap
@@ -105,6 +106,25 @@ fun SettingsScreen(
 ) {
     var page by remember { mutableStateOf(SettingsPage.ROOT) }
 
+    // The single back action, shared by the toolbar button and the Android
+    // system back button so they always behave identically: step up one
+    // settings level, or close Settings when already at the root.
+    val goBack = {
+        page = when (page) {
+            SettingsPage.ROOT -> { onClose(); SettingsPage.ROOT }
+            SettingsPage.APPEARANCE -> SettingsPage.ROOT
+            SettingsPage.LIGHT_STYLE -> SettingsPage.ROOT
+            SettingsPage.DARK_STYLE -> SettingsPage.ROOT
+            SettingsPage.VIEW_FONT -> SettingsPage.ROOT
+            SettingsPage.EDIT_FONT -> SettingsPage.ROOT
+            SettingsPage.VIEW_CUSTOM -> SettingsPage.VIEW_FONT
+            SettingsPage.EDIT_CUSTOM -> SettingsPage.EDIT_FONT
+        }
+    }
+
+    // System back mirrors the toolbar back exactly (see goBack).
+    BackHandler(enabled = true) { goBack() }
+
     val title = when (page) {
         SettingsPage.ROOT -> "Settings"
         SettingsPage.APPEARANCE -> "Appearance"
@@ -122,18 +142,7 @@ fun SettingsScreen(
             TopAppBar(
                 title = { Text(title) },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        page = when (page) {
-                            SettingsPage.ROOT -> { onClose(); SettingsPage.ROOT }
-                            SettingsPage.APPEARANCE -> SettingsPage.ROOT
-                            SettingsPage.LIGHT_STYLE -> SettingsPage.ROOT
-                            SettingsPage.DARK_STYLE -> SettingsPage.ROOT
-                            SettingsPage.VIEW_FONT -> SettingsPage.ROOT
-                            SettingsPage.EDIT_FONT -> SettingsPage.ROOT
-                            SettingsPage.VIEW_CUSTOM -> SettingsPage.VIEW_FONT
-                            SettingsPage.EDIT_CUSTOM -> SettingsPage.EDIT_FONT
-                        }
-                    }) {
+                    IconButton(onClick = { goBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
