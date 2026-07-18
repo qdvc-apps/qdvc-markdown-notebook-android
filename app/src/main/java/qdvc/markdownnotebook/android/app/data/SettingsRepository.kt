@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import qdvc.markdownnotebook.android.app.model.AppFont
 import qdvc.markdownnotebook.android.app.model.DarkStyle
 import qdvc.markdownnotebook.android.app.model.ThemeMode
 import qdvc.markdownnotebook.android.app.model.Workspace
@@ -25,6 +26,8 @@ class SettingsRepository(private val context: Context) {
     private object Keys {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val DARK_STYLE = stringPreferencesKey("dark_style")
+        val VIEW_FONT = stringPreferencesKey("view_font")
+        val EDIT_FONT = stringPreferencesKey("edit_font")
         val WORKSPACES = stringSetPreferencesKey("workspaces")
         val WORKSPACE_ORDER = stringPreferencesKey("workspace_order")
     }
@@ -35,6 +38,14 @@ class SettingsRepository(private val context: Context) {
 
     val darkStyle: Flow<DarkStyle> = context.dataStore.data.map {
         DarkStyle.fromName(it[Keys.DARK_STYLE])
+    }
+
+    val viewFont: Flow<AppFont> = context.dataStore.data.map {
+        AppFont.fromName(it[Keys.VIEW_FONT])
+    }
+
+    val editFont: Flow<AppFont> = context.dataStore.data.map {
+        AppFont.fromName(it[Keys.EDIT_FONT])
     }
 
     val workspaces: Flow<List<Workspace>> = context.dataStore.data.map { prefs ->
@@ -53,6 +64,14 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setDarkStyle(style: DarkStyle) {
         context.dataStore.edit { it[Keys.DARK_STYLE] = style.name }
+    }
+
+    suspend fun setViewFont(font: AppFont) {
+        context.dataStore.edit { it[Keys.VIEW_FONT] = font.name }
+    }
+
+    suspend fun setEditFont(font: AppFont) {
+        context.dataStore.edit { it[Keys.EDIT_FONT] = font.name }
     }
 
     suspend fun addWorkspace(workspace: Workspace) {

@@ -12,8 +12,8 @@ import androidx.compose.ui.text.withStyle
 /**
  * Colours the tokens that make up markdown syntax. Font size never changes:
  * structure is communicated only through colour and weight, per the spec.
- * Every run is forced to monospace so bold/italic runs cannot fall back to a
- * proportional face.
+ * Every run is forced to [fontFamily] so bold/italic runs cannot fall back to
+ * a different face; the caller supplies whichever family the user has chosen.
  */
 data class SyntaxColors(
     val base: Color,
@@ -28,8 +28,12 @@ data class SyntaxColors(
 
 object MarkdownHighlighter {
 
-    fun highlight(text: String, colors: SyntaxColors): AnnotatedString = buildAnnotatedString {
-        withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) {
+    fun highlight(
+        text: String,
+        colors: SyntaxColors,
+        fontFamily: FontFamily,
+    ): AnnotatedString = buildAnnotatedString {
+        withStyle(SpanStyle(fontFamily = fontFamily)) {
             val lines = text.split("\n")
             lines.forEachIndexed { index, line ->
                 appendLine(line, colors)

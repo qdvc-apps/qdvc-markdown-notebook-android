@@ -15,6 +15,8 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Contrast
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -33,18 +35,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import qdvc.markdownnotebook.android.app.model.AppFont
 import qdvc.markdownnotebook.android.app.model.DarkStyle
 import qdvc.markdownnotebook.android.app.model.ThemeMode
 
-private enum class SettingsPage { ROOT, APPEARANCE, DARK_STYLE }
+private enum class SettingsPage { ROOT, APPEARANCE, DARK_STYLE, VIEW_FONT, EDIT_FONT }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     themeMode: ThemeMode,
     darkStyle: DarkStyle,
+    viewFont: AppFont,
+    editFont: AppFont,
     onThemeMode: (ThemeMode) -> Unit,
     onDarkStyle: (DarkStyle) -> Unit,
+    onViewFont: (AppFont) -> Unit,
+    onEditFont: (AppFont) -> Unit,
     onClose: () -> Unit,
 ) {
     var page by remember { mutableStateOf(SettingsPage.ROOT) }
@@ -53,6 +60,8 @@ fun SettingsScreen(
         SettingsPage.ROOT -> "Settings"
         SettingsPage.APPEARANCE -> "Appearance"
         SettingsPage.DARK_STYLE -> "Dark Mode Style"
+        SettingsPage.VIEW_FONT -> "View Font"
+        SettingsPage.EDIT_FONT -> "Edit Font"
     }
 
     Scaffold(
@@ -66,6 +75,8 @@ fun SettingsScreen(
                             SettingsPage.ROOT -> { onClose(); SettingsPage.ROOT }
                             SettingsPage.APPEARANCE -> SettingsPage.ROOT
                             SettingsPage.DARK_STYLE -> SettingsPage.ROOT
+                            SettingsPage.VIEW_FONT -> SettingsPage.ROOT
+                            SettingsPage.EDIT_FONT -> SettingsPage.ROOT
                         }
                     }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -100,6 +111,19 @@ fun SettingsScreen(
                         subtitle = darkStyle.label,
                         onClick = { page = SettingsPage.DARK_STYLE },
                     )
+                    SectionHeader("Fonts")
+                    NavRow(
+                        icon = { Icon(Icons.Filled.Visibility, null, tint = MaterialTheme.colorScheme.primary) },
+                        title = "View Font",
+                        subtitle = viewFont.label,
+                        onClick = { page = SettingsPage.VIEW_FONT },
+                    )
+                    NavRow(
+                        icon = { Icon(Icons.Filled.Edit, null, tint = MaterialTheme.colorScheme.primary) },
+                        title = "Edit Font",
+                        subtitle = editFont.label,
+                        onClick = { page = SettingsPage.EDIT_FONT },
+                    )
                 }
 
                 SettingsPage.APPEARANCE -> {
@@ -124,6 +148,28 @@ fun SettingsScreen(
                             },
                             selected = style == darkStyle,
                             onClick = { onDarkStyle(style) },
+                        )
+                    }
+                }
+
+                SettingsPage.VIEW_FONT -> {
+                    SectionHeader("Font for the View tab")
+                    AppFont.entries.forEach { font ->
+                        ChoiceRow(
+                            label = font.label,
+                            selected = font == viewFont,
+                            onClick = { onViewFont(font) },
+                        )
+                    }
+                }
+
+                SettingsPage.EDIT_FONT -> {
+                    SectionHeader("Font for the Edit tab")
+                    AppFont.entries.forEach { font ->
+                        ChoiceRow(
+                            label = font.label,
+                            selected = font == editFont,
+                            onClick = { onEditFont(font) },
                         )
                     }
                 }

@@ -19,6 +19,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -26,12 +27,12 @@ import androidx.compose.ui.unit.sp
 import qdvc.markdownnotebook.android.app.model.OpenNote
 import qdvc.markdownnotebook.android.app.ui.components.MarkdownVisualTransformation
 import qdvc.markdownnotebook.android.app.ui.components.rememberSyntaxColors
-import qdvc.markdownnotebook.android.app.ui.theme.MonoTextStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditScreen(
     note: OpenNote?,
+    fontFamily: FontFamily,
     onDraftChange: (String) -> Unit,
     onSave: () -> Unit,
 ) {
@@ -70,8 +71,8 @@ fun EditScreen(
         }
 
         // Keep cursor state locally; push text changes up to the ViewModel.
-        val transformation = remember(syntaxColors) {
-            MarkdownVisualTransformation(syntaxColors)
+        val transformation = remember(syntaxColors, fontFamily) {
+            MarkdownVisualTransformation(syntaxColors, fontFamily)
         }
         val fieldValue = remember(note.documentUri) {
             androidx.compose.runtime.mutableStateOf(TextFieldValue(note.draftContent))
@@ -94,7 +95,8 @@ fun EditScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp),
-            textStyle = MonoTextStyle.copy(
+            textStyle = MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = fontFamily,
                 fontSize = 14.sp,
                 lineHeight = 22.sp,
                 color = MaterialTheme.colorScheme.onSurface,

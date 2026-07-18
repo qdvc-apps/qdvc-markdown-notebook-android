@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import qdvc.markdownnotebook.android.app.data.NoteRepository
 import qdvc.markdownnotebook.android.app.data.SettingsRepository
+import qdvc.markdownnotebook.android.app.model.AppFont
 import qdvc.markdownnotebook.android.app.model.DarkStyle
 import qdvc.markdownnotebook.android.app.model.FolderEntry
 import qdvc.markdownnotebook.android.app.model.OpenNote
@@ -44,6 +45,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         settingsRepo.themeMode.stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.AUTOMATIC)
     val darkStyle: StateFlow<DarkStyle> =
         settingsRepo.darkStyle.stateIn(viewModelScope, SharingStarted.Eagerly, DarkStyle.REGULAR)
+    val viewFont: StateFlow<AppFont> =
+        settingsRepo.viewFont.stateIn(viewModelScope, SharingStarted.Eagerly, AppFont.MONOSPACE)
+    val editFont: StateFlow<AppFont> =
+        settingsRepo.editFont.stateIn(viewModelScope, SharingStarted.Eagerly, AppFont.MONOSPACE)
     val workspaces: StateFlow<List<Workspace>> =
         settingsRepo.workspaces.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -74,6 +79,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     // ---- Settings ----
     fun setThemeMode(mode: ThemeMode) = viewModelScope.launch { settingsRepo.setThemeMode(mode) }
     fun setDarkStyle(style: DarkStyle) = viewModelScope.launch { settingsRepo.setDarkStyle(style) }
+    fun setViewFont(font: AppFont) = viewModelScope.launch { settingsRepo.setViewFont(font) }
+    fun setEditFont(font: AppFont) = viewModelScope.launch { settingsRepo.setEditFont(font) }
 
     // ---- Workspaces ----
     fun addWorkspace(treeUri: String, name: String) = viewModelScope.launch {

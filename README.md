@@ -31,11 +31,14 @@ straight back to the original `.md` / `.markdown` files.
 - **Browse** — start here. A home list of workspaces (add or remove folders).
   Tap a workspace to slide into its contents; a toolbar button creates a new
   note. Tapping a note opens it and jumps to View. The overflow menu holds
-  Settings (Appearance, and Dark Mode Style with a pure-black OLED option).
-- **View** — the open note, read-only, in a single monospace size. Markdown is
-  shown through syntax highlighting, never by resizing text.
-- **Edit** — the same, but writable. A Save button appears only when there are
-  unsaved changes.
+  Settings (Appearance; Dark Mode Style with a pure-black OLED option; and
+  separate View Font and Edit Font pickers drawn from the system font
+  families). The status bar and navigation bar follow the active theme.
+- **View** — the open note, read-only but selectable (long-press to select and
+  copy). Markdown is shown through syntax highlighting, never by resizing text.
+  The font is whatever you pick under Settings → Fonts → View Font.
+- **Edit** — the same, but writable, with its own font choice (Settings → Fonts
+  → Edit Font). A Save button appears only when there are unsaved changes.
 - **Jump** — every open note, for quick switching. Swipe a row to reveal a red
   close button; closing a note with unsaved changes asks first. The toolbar
   toggles a reorder mode.

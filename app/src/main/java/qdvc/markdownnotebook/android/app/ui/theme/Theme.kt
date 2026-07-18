@@ -6,8 +6,8 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import qdvc.markdownnotebook.android.app.model.AppFont
 import qdvc.markdownnotebook.android.app.model.DarkStyle
 import qdvc.markdownnotebook.android.app.model.ThemeMode
 
@@ -83,5 +83,10 @@ fun MarkdownNotesTheme(
     )
 }
 
-// Monospace text style used everywhere in the note viewer/editor.
-val MonoTextStyle = TextStyle(fontFamily = FontFamily.Monospace)
+/** Maps a user font choice to a concrete system font family. */
+fun AppFont.toFontFamily(): FontFamily = when (this) {
+    AppFont.MONOSPACE -> FontFamily.Monospace
+    AppFont.SANS_SERIF -> FontFamily.SansSerif
+    AppFont.SERIF -> FontFamily.Serif
+    AppFont.CURSIVE -> FontFamily.Cursive
+}
