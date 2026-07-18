@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.mdnotes.app"
+    namespace = "qdvc.markdownnotebook.android.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.mdnotes.app"
+        applicationId = "qdvc.markdownnotebook.android.app"
         minSdk = 26
         targetSdk = 34
         versionCode = 1
