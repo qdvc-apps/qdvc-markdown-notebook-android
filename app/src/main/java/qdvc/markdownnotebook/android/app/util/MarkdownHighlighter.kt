@@ -11,7 +11,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 
 /**
@@ -43,10 +42,16 @@ object MarkdownHighlighter {
      * bold text is bold, italics slant, strikethrough is struck through, and the
      * surrounding markers are dimmed. When false (the Edit tab), markers keep
      * full colour so the raw source stays clear for editing.
-     * @param hangingIndentFontSizeSp when non-null, wrapped lines of a list item
-     * are indented to align under the item's text, using this font size to size
-     * the indent. The transformation preserves every character (including
-     * newlines), so it is safe for the editor's identity offset mapping too.
+     * @param hangingIndentFontSizeSp when non-null, wrapped list lines are
+     * indented to align under the item's text via a per-line [ParagraphStyle].
+     *
+     * IMPORTANT: hanging indents change how line breaks are produced (a
+     * ParagraphStyle already separates paragraphs "as if it had line feeds at
+     * the beginning and end"), so this path does NOT emit literal '\n'
+     * characters. That makes the output length differ from the input, so it is
+     * only safe for a plain read-only Text (the View tab) — not for a
+     * VisualTransformation with an identity offset mapping. The editor therefore
+     * passes null here and gets the character-preserving path below.
      */
     fun highlight(
         text: String,
@@ -55,51 +60,47 @@ object MarkdownHighlighter {
         render: Boolean = false,
         hangingIndentFontSizeSp: Float? = null,
     ): AnnotatedString = buildAnnotatedString {
-        withStyle(SpanStyle(fontFamily = fontFamily)) {
-            val lines = text.split("\n")
-            lines.forEachIndexed { index, line ->
-                // Keep newline characters so the output length matches the input
-                // (required for the editor's identity offset mapping). In hanging
-                // mode the newline is emitted inside the line's paragraph.
-                val trailingNewline = index != lines.lastIndex
-                appendLine(line, colors, render, hangingIndentFontSizeSp, trailingNewline)
+        val lines = text.split("\n")
+        if (hangingIndentFontSizeSp != null) {
+            // View path: each line is its own paragraph. The ParagraphStyle
+            // provides the line separation, so we must NOT also append '\n'
+            // (that would double every break and add a blank line per line).
+            // ParagraphStyle is the outer wrapper (Compose requires paragraph
+            // styles to enclose span styles, not the reverse); the font family
+            // span is applied inside each paragraph.
+            lines.forEach { line ->
+                val trimmed = line.trimStart()
+                val indent = line.length - trimmed.length
+                val ulMatch = Regex("^([-*+])\\s+").find(trimmed)
+                val olMatch = Regex("^(\\d+[.)])\\s+").find(trimmed)
+                val markerWidth = ulMatch?.value?.length ?: olMatch?.value?.length ?: 0
+                val hangingChars = indent + markerWidth
+                val restIndent =
+                    if (hangingChars > 0) (hangingIndentFontSizeSp * CHAR_ADVANCE_EM * hangingChars).sp
+                    else 0.sp
+                withStyle(
+                    ParagraphStyle(textIndent = TextIndent(firstLine = 0.sp, restLine = restIndent))
+                ) {
+                    withStyle(SpanStyle(fontFamily = fontFamily)) {
+                        appendLineBody(line, trimmed, indent, colors, render, ulMatch, olMatch)
+                    }
+                }
+            }
+        } else {
+            // Editor / plain path: keep the source exactly, one '\n' per line
+            // break and no paragraph styles, so the length matches the input
+            // and the editor's identity offset mapping stays valid.
+            withStyle(SpanStyle(fontFamily = fontFamily)) {
+                lines.forEachIndexed { index, line ->
+                    val trimmed = line.trimStart()
+                    val indent = line.length - trimmed.length
+                    val ulMatch = Regex("^([-*+])\\s+").find(trimmed)
+                    val olMatch = Regex("^(\\d+[.)])\\s+").find(trimmed)
+                    appendLineBody(line, trimmed, indent, colors, render, ulMatch, olMatch)
+                    if (index != lines.lastIndex) append("\n")
+                }
             }
         }
-    }
-
-    private fun AnnotatedString.Builder.appendLine(
-        line: String,
-        c: SyntaxColors,
-        render: Boolean,
-        hangingFontSizeSp: Float?,
-        trailingNewline: Boolean,
-    ) {
-        val trimmed = line.trimStart()
-        val indent = line.length - trimmed.length
-
-        // Work out how far wrapped continuation lines should be indented so they
-        // align under the content of a list item (a "hanging indent").
-        val ulMatch = Regex("^([-*+])\\s+").find(trimmed)
-        val olMatch = Regex("^(\\d+[.)])\\s+").find(trimmed)
-        val markerWidth = ulMatch?.value?.length ?: olMatch?.value?.length ?: 0
-        val hangingChars = indent + markerWidth
-
-        // In hanging mode every source line is its own paragraph (so wrapped
-        // lines can be indented). List items get a rest-line indent that aligns
-        // continuation lines under the item text; other lines get zero.
-        if (hangingFontSizeSp != null) {
-            val restIndent: TextUnit =
-                if (hangingChars > 0) (hangingFontSizeSp * CHAR_ADVANCE_EM * hangingChars).sp
-                else 0.sp
-            pushStyle(ParagraphStyle(textIndent = TextIndent(firstLine = 0.sp, restLine = restIndent)))
-        }
-
-        appendLineBody(line, trimmed, indent, c, render, ulMatch, olMatch)
-        // Emit the newline inside the paragraph so the character count matches
-        // the source exactly (identity offset mapping for the editor).
-        if (trailingNewline) append("\n")
-
-        if (hangingFontSizeSp != null) pop()
     }
 
     private fun AnnotatedString.Builder.appendLineBody(

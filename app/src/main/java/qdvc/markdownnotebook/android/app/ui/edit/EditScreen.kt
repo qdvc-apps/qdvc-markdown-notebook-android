@@ -74,8 +74,8 @@ fun EditScreen(
         }
 
         // Keep cursor state locally; push text changes up to the ViewModel.
-        val transformation = remember(syntaxColors, fontFamily, fontSize) {
-            MarkdownVisualTransformation(syntaxColors, fontFamily, fontSize)
+        val transformation = remember(syntaxColors, fontFamily) {
+            MarkdownVisualTransformation(syntaxColors, fontFamily)
         }
         val fieldValue = remember(note.documentUri) {
             androidx.compose.runtime.mutableStateOf(TextFieldValue(note.draftContent))

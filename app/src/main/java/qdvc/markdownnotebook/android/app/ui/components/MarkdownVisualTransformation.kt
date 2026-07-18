@@ -11,15 +11,18 @@ import qdvc.markdownnotebook.android.app.util.SyntaxColors
 /**
  * Recolours the editor text with markdown syntax highlighting without changing
  * any characters, so the offset mapping is identity. Font size is untouched;
- * only colour/weight and paragraph indentation change. The base [fontFamily]
- * matches the user's choice, and [fontSizeSp] sizes the hanging indent applied
- * to wrapped list lines (identity mapping is preserved because no characters
- * are added or removed).
+ * only colour/weight change. The base [fontFamily] matches the user's choice.
+ *
+ * Note: hanging indents (per-line ParagraphStyle) are intentionally NOT applied
+ * here. In Compose a ParagraphStyle separates paragraphs "as if it had line
+ * feeds at the beginning and end", which is incompatible with also keeping the
+ * literal '\n' characters the editor needs for a 1:1 identity offset mapping —
+ * doing both double-spaces every line. The read-only View tab, which needs no
+ * offset mapping, is where hanging indents are applied instead.
  */
 class MarkdownVisualTransformation(
     private val colors: SyntaxColors,
     private val fontFamily: FontFamily,
-    private val fontSizeSp: Float,
 ) : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
         val highlighted = MarkdownHighlighter.highlight(
@@ -27,7 +30,7 @@ class MarkdownVisualTransformation(
             colors,
             fontFamily,
             render = false,
-            hangingIndentFontSizeSp = fontSizeSp,
+            hangingIndentFontSizeSp = null,
         )
         return TransformedText(highlighted, OffsetMapping.Identity)
     }
