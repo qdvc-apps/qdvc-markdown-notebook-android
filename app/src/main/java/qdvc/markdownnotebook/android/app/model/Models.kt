@@ -29,6 +29,19 @@ data class NoteFile(
 )
 
 /**
+ * A note discovered by a workspace scan, carrying the metadata the index needs
+ * to decide whether its cached copy is still fresh (last-modified time + size).
+ */
+data class ScannedNote(
+    val documentUri: String,
+    val displayName: String,
+    val docId: String,
+    val relativePath: String,
+    val lastModified: Long,
+    val size: Long,
+)
+
+/**
  * A full-text search hit: the matched note plus a short snippet of surrounding
  * text showing the first match.
  */

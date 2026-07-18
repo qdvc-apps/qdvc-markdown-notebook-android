@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.compose.ui.text.font.FontFamily
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import qdvc.markdownnotebook.android.app.data.IndexRepository
 import qdvc.markdownnotebook.android.app.data.NoteRepository
 import qdvc.markdownnotebook.android.app.data.SettingsRepository
 import qdvc.markdownnotebook.android.app.data.ThemeRepository
@@ -11,6 +12,7 @@ import qdvc.markdownnotebook.android.app.model.CustomFontSet
 import qdvc.markdownnotebook.android.app.model.FolderEntry
 import qdvc.markdownnotebook.android.app.model.FontSizes
 import qdvc.markdownnotebook.android.app.model.FontVariant
+import qdvc.markdownnotebook.android.app.model.IndexStatus
 import qdvc.markdownnotebook.android.app.model.NoteFile
 import qdvc.markdownnotebook.android.app.model.OpenNote
 import qdvc.markdownnotebook.android.app.model.PersistedOpenNote
@@ -28,6 +30,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -45,7 +48,7 @@ data class BrowseFolder(
 )
 
 /** Which screen the Browse tab is showing. */
-enum class BrowseMode { WORKSPACES, OVERVIEW, FOLDERS, ALL_NOTES, SEARCH }
+enum class BrowseMode { WORKSPACES, OVERVIEW, FOLDERS, ALL_NOTES, SEARCH, INDEX_STATUS }
 
 data class BrowseState(
     val mode: BrowseMode = BrowseMode.WORKSPACES,
@@ -68,6 +71,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     private val settingsRepo = SettingsRepository(app)
     private val noteRepo = NoteRepository(app)
+    private val indexRepo = IndexRepository(app, noteRepo)
 
     val themeMode: StateFlow<ThemeMode> =
         settingsRepo.themeMode.stateIn(viewModelScope, SharingStarted.Eagerly, ThemeMode.AUTOMATIC)
@@ -142,12 +146,30 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     val hasCurrentNote: Boolean get() = _currentNoteUri.value != null
 
+    // The index status for the workspace currently shown in the overview. The
+    // Index Status screen collects this; it's swapped when a workspace opens.
+    private val _indexStatus = MutableStateFlow(IndexStatus())
+    val indexStatus: StateFlow<IndexStatus> = _indexStatus.asStateFlow()
+    private var indexStatusJob: kotlinx.coroutines.Job? = null
+
     init {
         restoreOpenNotes()
         loadSystemFonts()
         // Load each tab's custom font from its copied slot files at startup.
         reloadCustomFont(forView = true)
         reloadCustomFont(forView = false)
+        // Bring every workspace's index up to date in the background on launch.
+        reindexAllWorkspaces()
+    }
+
+    /** Kicks off a cheap reconciliation for each known workspace, off the main thread. */
+    private fun reindexAllWorkspaces() {
+        viewModelScope.launch {
+            val current = settingsRepo.workspaces.first()
+            for (ws in current) {
+                launch { indexRepo.reconcile(ws.treeUri) }
+            }
+        }
     }
 
     private fun loadSystemFonts() {
@@ -289,6 +311,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** Tapping a workspace shows its overview (Browse files / All notes / Search). */
     fun openWorkspace(workspace: Workspace) {
         _browse.value = BrowseState(mode = BrowseMode.OVERVIEW, workspace = workspace)
+        // Mirror this workspace's index status into _indexStatus for the UI.
+        indexStatusJob?.cancel()
+        indexStatusJob = viewModelScope.launch {
+            indexRepo.refreshStatus(workspace.treeUri)
+            indexRepo.status(workspace.treeUri).collect { _indexStatus.value = it }
+        }
     }
 
     /** From the overview: open the folder browser at the workspace root. */
@@ -303,12 +331,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         refreshCurrentFolder()
     }
 
-    /** From the overview: show every note in the workspace. */
+    /**
+     * From the overview: show every note in the workspace. Uses the on-device
+     * index when it's available (fast), falling back to a live SAF scan when the
+     * workspace hasn't been indexed yet.
+     */
     fun openAllNotes() {
         val ws = _browse.value.workspace ?: return
         _browse.value = _browse.value.copy(mode = BrowseMode.ALL_NOTES, allNotesLoading = true)
         viewModelScope.launch {
-            val notes = noteRepo.listAllNotes(ws.treeUri)
+            val notes = indexRepo.listAllNotes(ws.treeUri) ?: noteRepo.listAllNotes(ws.treeUri)
             _browse.value = _browse.value.copy(allNotes = notes, allNotesLoading = false)
         }
     }
@@ -323,16 +355,33 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         )
     }
 
+    /** From the overview: open the index status screen. */
+    fun openIndexStatus() {
+        val ws = _browse.value.workspace ?: return
+        _browse.value = _browse.value.copy(mode = BrowseMode.INDEX_STATUS)
+        viewModelScope.launch { indexRepo.refreshStatus(ws.treeUri) }
+    }
+
+    /** Manually rebuild the current workspace's index from scratch. */
+    fun regenerateIndex() {
+        val ws = _browse.value.workspace ?: return
+        viewModelScope.launch { indexRepo.regenerate(ws.treeUri) }
+    }
+
     fun updateSearchQuery(query: String) {
         _browse.value = _browse.value.copy(searchQuery = query)
     }
 
+    /**
+     * Runs a search using the on-device full-text index when available, falling
+     * back to the live scan-and-read search if the workspace isn't indexed yet.
+     */
     fun runSearch() {
         val ws = _browse.value.workspace ?: return
         val query = _browse.value.searchQuery
         _browse.value = _browse.value.copy(searching = true)
         viewModelScope.launch {
-            val results = noteRepo.search(ws.treeUri, query)
+            val results = indexRepo.search(ws.treeUri, query) ?: noteRepo.search(ws.treeUri, query)
             _browse.value = _browse.value.copy(searchResults = results, searching = false)
         }
     }
@@ -359,7 +408,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 _browse.value = BrowseState() // back to workspace list
                 true
             }
-            BrowseMode.ALL_NOTES, BrowseMode.SEARCH -> {
+            BrowseMode.ALL_NOTES, BrowseMode.SEARCH, BrowseMode.INDEX_STATUS -> {
                 _browse.value = _browse.value.copy(mode = BrowseMode.OVERVIEW)
                 true
             }
@@ -452,6 +501,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 _openNotes.value = _openNotes.value.map {
                     if (it.documentUri == uri) it.copy(savedContent = it.draftContent) else it
                 }
+                // Keep the search index current with the just-saved content.
+                indexRepo.updateSavedNote(uri, note.draftContent)
             }
             onDone(ok)
         }

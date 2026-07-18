@@ -6,6 +6,7 @@ import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
 import qdvc.markdownnotebook.android.app.model.FolderEntry
 import qdvc.markdownnotebook.android.app.model.NoteFile
+import qdvc.markdownnotebook.android.app.model.ScannedNote
 import qdvc.markdownnotebook.android.app.model.SearchResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -117,6 +118,63 @@ class NoteRepository(private val context: Context) {
         for ((childId, childName) in subFolders) {
             val childPath = if (relativePath.isEmpty()) childName else "$relativePath/$childName"
             collectNotes(treeUri, childId, childPath, out)
+        }
+    }
+
+    /**
+     * Like [listAllNotes] but also captures each note's last-modified time and
+     * size, which the on-device index uses to detect changed files cheaply
+     * (without reading any bodies). This is the "cheap half" of a reconciliation
+     * pass: many SAF queries, but no file opens.
+     */
+    suspend fun listAllNotesWithMeta(rootTreeUri: String): List<ScannedNote> =
+        withContext(Dispatchers.IO) {
+            val treeUri = Uri.parse(rootTreeUri)
+            val rootId = DocumentsContract.getTreeDocumentId(treeUri)
+            val result = mutableListOf<ScannedNote>()
+            collectNotesWithMeta(treeUri, rootId, "", result)
+            result
+        }
+
+    private fun collectNotesWithMeta(
+        treeUri: Uri,
+        folderDocId: String,
+        relativePath: String,
+        out: MutableList<ScannedNote>,
+    ) {
+        val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, folderDocId)
+        val projection = arrayOf(
+            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+            DocumentsContract.Document.COLUMN_MIME_TYPE,
+            DocumentsContract.Document.COLUMN_LAST_MODIFIED,
+            DocumentsContract.Document.COLUMN_SIZE,
+        )
+        val subFolders = mutableListOf<Pair<String, String>>()
+        try {
+            context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val docId = cursor.getString(0)
+                    val name = cursor.getString(1) ?: continue
+                    val mime = cursor.getString(2)
+                    val lastModified = if (cursor.isNull(3)) 0L else cursor.getLong(3)
+                    val size = if (cursor.isNull(4)) 0L else cursor.getLong(4)
+                    if (mime == DocumentsContract.Document.MIME_TYPE_DIR) {
+                        subFolders.add(docId to name)
+                    } else if (isMarkdown(name)) {
+                        val docUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, docId)
+                        out.add(
+                            ScannedNote(docUri.toString(), name, docId, relativePath, lastModified, size)
+                        )
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            return
+        }
+        for ((childId, childName) in subFolders) {
+            val childPath = if (relativePath.isEmpty()) childName else "$relativePath/$childName"
+            collectNotesWithMeta(treeUri, childId, childPath, out)
         }
     }
 

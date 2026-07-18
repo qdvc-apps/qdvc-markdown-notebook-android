@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -33,7 +35,9 @@ import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,6 +65,8 @@ import androidx.compose.ui.unit.sp
 import qdvc.markdownnotebook.android.app.BrowseMode
 import qdvc.markdownnotebook.android.app.BrowseState
 import qdvc.markdownnotebook.android.app.model.FolderEntry
+import qdvc.markdownnotebook.android.app.model.IndexState
+import qdvc.markdownnotebook.android.app.model.IndexStatus
 import qdvc.markdownnotebook.android.app.model.NoteFile
 import qdvc.markdownnotebook.android.app.model.SearchResult
 import qdvc.markdownnotebook.android.app.model.Workspace
@@ -76,6 +82,9 @@ fun BrowseScreen(
     onOpenFolders: () -> Unit,
     onOpenAllNotes: () -> Unit,
     onOpenSearch: () -> Unit,
+    onOpenIndexStatus: () -> Unit,
+    onRegenerateIndex: () -> Unit,
+    indexStatus: IndexStatus,
     onOpenSubFolder: (FolderEntry) -> Unit,
     onOpenNote: (FolderEntry) -> Unit,
     onOpenNoteFile: (NoteFile) -> Unit,
@@ -98,6 +107,7 @@ fun BrowseScreen(
         BrowseMode.FOLDERS -> browse.stack.lastOrNull()?.title ?: browse.workspace?.name ?: ""
         BrowseMode.ALL_NOTES -> "All notes"
         BrowseMode.SEARCH -> "Search"
+        BrowseMode.INDEX_STATUS -> "Index status"
     }
 
     Scaffold(
@@ -149,6 +159,7 @@ fun BrowseScreen(
             BrowseMode.WORKSPACES -> 0
             BrowseMode.OVERVIEW -> 1
             BrowseMode.ALL_NOTES, BrowseMode.SEARCH -> 2
+            BrowseMode.INDEX_STATUS -> 2
             BrowseMode.FOLDERS -> 1 + browse.stack.size
         }
         AnimatedContent(
@@ -183,6 +194,7 @@ fun BrowseScreen(
                     onBrowseFiles = onOpenFolders,
                     onAllNotes = onOpenAllNotes,
                     onSearch = onOpenSearch,
+                    onIndexStatus = onOpenIndexStatus,
                 )
                 BrowseMode.FOLDERS -> FolderView(
                     browse = browse,
@@ -198,6 +210,10 @@ fun BrowseScreen(
                     onQueryChange = onSearchQueryChange,
                     onRunSearch = onRunSearch,
                     onOpenNoteFile = onOpenNoteFile,
+                )
+                BrowseMode.INDEX_STATUS -> IndexStatusView(
+                    status = indexStatus,
+                    onRegenerate = onRegenerateIndex,
                 )
             }
         }
@@ -299,6 +315,7 @@ private fun WorkspaceOverview(
     onBrowseFiles: () -> Unit,
     onAllNotes: () -> Unit,
     onSearch: () -> Unit,
+    onIndexStatus: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         // Show the workspace's underlying folder path in small text.
@@ -316,6 +333,7 @@ private fun WorkspaceOverview(
         OverviewRow(Icons.Filled.FolderOpen, "Browse files", "Explore the folder structure", onBrowseFiles)
         OverviewRow(Icons.Filled.Article, "All notes", "Every note, wherever it's filed", onAllNotes)
         OverviewRow(Icons.Filled.Search, "Search", "Full-text search of titles and contents", onSearch)
+        OverviewRow(Icons.Filled.Storage, "Index status", "The on-device search index", onIndexStatus)
     }
 }
 
@@ -341,6 +359,76 @@ private fun OverviewRow(
         }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+}
+
+@Composable
+private fun IndexStatusView(
+    status: IndexStatus,
+    onRegenerate: () -> Unit,
+) {
+    val (label, detail) = when (status.state) {
+        IndexState.READY -> "Ready" to "The index is up to date and serving searches."
+        IndexState.BUILDING -> "Updating…" to "The index is being brought up to date in the background."
+        IndexState.NOT_BUILT -> "Not built yet" to
+            "No index for this workspace yet. Search falls back to a live scan until it's built."
+    }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        StatusLine("Status", label)
+        StatusLine("Indexed notes", status.noteCount.toString())
+        StatusLine("Last regenerated", formatTimestamp(status.lastRegenerated))
+
+        Text(
+            detail,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 14.sp,
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        Button(
+            onClick = onRegenerate,
+            enabled = status.state != IndexState.BUILDING,
+        ) {
+            Text(if (status.state == IndexState.BUILDING) "Regenerating…" else "Regenerate now")
+        }
+
+        Text(
+            "Regenerating rebuilds the index from scratch by reading every note once. " +
+                "This only affects the app's private search index — your notes are never modified.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+        )
+    }
+}
+
+@Composable
+private fun StatusLine(label: String, value: String) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text(
+            label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 15.sp,
+            modifier = Modifier.weight(1f),
+        )
+        Text(value, color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp)
+    }
+}
+
+/** Formats an epoch-millis timestamp for display; 0 means "never". */
+private fun formatTimestamp(epochMillis: Long): String {
+    if (epochMillis <= 0L) return "Never"
+    val fmt = java.text.DateFormat.getDateTimeInstance(
+        java.text.DateFormat.MEDIUM, java.text.DateFormat.SHORT
+    )
+    return fmt.format(java.util.Date(epochMillis))
 }
 
 @Composable
